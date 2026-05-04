@@ -23,7 +23,7 @@ app.get('/api/tmdb/*', async (req, res) => {
     const url = `https://api.themoviedb.org/3/${tmdbPath}?${query}`;
     const r = await fetch(url);
     const data = await r.json();
-    res.json(data);
+    res.status(r.status).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -225,10 +225,15 @@ const yearOf=i=>(i.release_date||i.first_air_date||'').slice(0,4);
 const gmap=()=>mode==='movie'?MG:TG;
 
 async function init(){
-  const[mg,tg]=await Promise.all([tmdb('/genre/movie/list'),tmdb('/genre/tv/list')]);
-  mg.genres.forEach(g=>MG[g.id]=g.name);
-  tg.genres.forEach(g=>TG[g.id]=g.name);
-  await Promise.all([loadHero(),loadRows()]);
+  try{
+    const[mg,tg]=await Promise.all([tmdb('/genre/movie/list'),tmdb('/genre/tv/list')]);
+    mg.genres.forEach(g=>MG[g.id]=g.name);
+    tg.genres.forEach(g=>TG[g.id]=g.name);
+    await Promise.all([loadHero(),loadRows()]);
+  }catch(err){
+    document.getElementById('hero-title').textContent='Failed to load';
+    document.getElementById('hero-desc').textContent='API error: '+err.message+'. Check that TMDB_KEY is valid in Railway.';
+  }
 }
 
 function setMode(m,btn){
