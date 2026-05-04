@@ -504,36 +504,58 @@ async function checkRD(){
 async function fetchStreams(){
   if(!currentModalItem)return;
   const sbtn=document.getElementById('stream-btn');
-  sbtn.className='btn btn-stream loading';sbtn.textContent='⚡ Finding streams…';
+  sbtn.className='btn btn-stream loading';sbtn.textContent='⚡ Searching…';
   const picker=document.getElementById('stream-picker');
   const list=document.getElementById('stream-list');
   picker.classList.add('open');
-  list.innerHTML='<div class="stream-loading">Searching torrents & resolving through Real-Debrid…</div>';
+  list.innerHTML='<div class="stream-loading">Searching torrents…</div>';
 
   const type=currentModalIsTV?'tv':'movie';
-  let url=`/api/stream/${type}/${currentModalItem.id}`;
-  // For TV, if a season tab is active, use that season/episode
-  // For now just get the movie or first available
+  const url=`/api/stream/${type}/${currentModalItem.id}?sse=1`;
+  let count=0;
+
   try{
-    const data=await api(url);
-    if(!data.streams||data.streams.length===0){
-      list.innerHTML=`<div class="stream-error">${data.error||'No cached streams found on Real-Debrid'}</div>`;
-      sbtn.className='btn btn-stream';sbtn.textContent='⚡ No Streams';
-      return;
-    }
-    list.innerHTML='';
-    data.streams.forEach((s,i)=>{
-      const opt=document.createElement('div');opt.className='stream-option';
-      opt.onclick=()=>playStream(s.url,s.filename||titleOf(currentModalItem));
-      opt.innerHTML=`<div class="stream-quality">${s.quality}</div>
-        <div class="stream-info">
-          <div class="stream-tags">${s.tags}</div>
-          <div class="stream-filename">${s.filename}</div>
-        </div>
-        <div class="stream-play-icon">▶</div>`;
-      list.appendChild(opt);
-    });
-    sbtn.className='btn btn-stream';sbtn.textContent=`⚡ ${data.streams.length} Streams`;
+    const evtSource=new EventSource(url);
+    evtSource.onmessage=function(e){
+      const data=JSON.parse(e.data);
+
+      if(data.status){
+        // Status update
+        list.innerHTML=`<div class="stream-loading">${data.status}</div>`;
+      }
+
+      if(data.stream){
+        // A stream arrived — add it
+        if(count===0) list.innerHTML=''; // clear loading message
+        count++;
+        const s=data.stream;
+        const opt=document.createElement('div');opt.className='stream-option';
+        opt.onclick=()=>playStream(s.url,s.filename||titleOf(currentModalItem));
+        opt.innerHTML=`<div class="stream-quality">${s.quality}</div>
+          <div class="stream-info">
+            <div class="stream-tags">${s.tags}</div>
+            <div class="stream-filename">${s.filename}</div>
+          </div>
+          <div class="stream-play-icon">▶</div>`;
+        list.appendChild(opt);
+        sbtn.className='btn btn-stream';sbtn.textContent=`⚡ ${count} Stream${count>1?'s':''}`;
+      }
+
+      if(data.done){
+        evtSource.close();
+        if(count===0){
+          list.innerHTML=`<div class="stream-error">${data.error||'No cached streams found on Real-Debrid'}</div>`;
+          sbtn.className='btn btn-stream';sbtn.textContent='⚡ No Streams';
+        }
+      }
+    };
+    evtSource.onerror=function(){
+      evtSource.close();
+      if(count===0){
+        list.innerHTML='<div class="stream-error">Connection lost — try again</div>';
+        sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';
+      }
+    };
   }catch(err){
     list.innerHTML=`<div class="stream-error">Error: ${err.message}</div>`;
     sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';
