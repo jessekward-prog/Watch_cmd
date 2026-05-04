@@ -5,34 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Watch_CMD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#08080a;--surface:#0e0e10;--surface2:#141416;--accent:#a08050;--accent2:#8b6040;--text:#b0a898;--muted:#504840;--card-w:180px;--card-h:270px; }
+  :root { --bg:#080a0f;--surface:#0f1219;--surface2:#161b24;--accent:#e8b84b;--accent2:#c9415a;--text:#e8e6e0;--muted:#6b7280;--card-w:180px;--card-h:270px; }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
-  header{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 3rem;height:64px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(8,8,10,.98),transparent);backdrop-filter:blur(8px)}
+  header{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 3rem;height:64px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(8,10,15,.98),transparent);backdrop-filter:blur(8px)}
   .logo{font-family:'Bebas Neue',sans-serif;font-size:1.9rem;letter-spacing:.08em;color:var(--accent);text-decoration:none}
   .logo .cmd{color:var(--accent2)}
   .mode-toggle{display:flex;background:var(--surface);border:1px solid rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
-  .mode-btn{padding:.35rem 1.1rem;font-size:.75rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;border:none;background:transparent;transition:all .2s;font-family:'IBM Plex Mono',monospace}
+  .mode-btn{padding:.35rem 1.1rem;font-size:.75rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;border:none;background:transparent;transition:all .2s;font-family:'DM Sans',sans-serif}
   .mode-btn.active{background:var(--accent);color:#080a0f}
   nav{display:flex;gap:1.5rem;align-items:center}
-  nav a{color:var(--muted);text-decoration:none;font-size:.82rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;transition:color .2s;cursor:pointer;font-family:'IBM Plex Mono',monospace}
+  nav a{color:var(--muted);text-decoration:none;font-size:.82rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;transition:color .2s;cursor:pointer}
   nav a:hover,nav a.active{color:var(--text)}
   .hero{height:520px;position:relative;margin-top:64px;overflow:hidden;display:flex;align-items:flex-end;padding:3rem}
   .hero-bg{position:absolute;inset:0;background-size:cover;background-position:center 20%;filter:brightness(.45) saturate(.8);transform:scale(1.03);transition:background-image .5s}
-  .hero-vignette{position:absolute;inset:0;background:linear-gradient(to right,rgba(8,8,10,.88) 0%,rgba(8,8,10,.3) 55%,transparent 100%),linear-gradient(to top,rgba(8,8,10,1) 0%,rgba(8,8,10,.4) 40%,transparent 100%)}
+  .hero-vignette{position:absolute;inset:0;background:linear-gradient(to right,rgba(8,10,15,.88) 0%,rgba(8,10,15,.3) 55%,transparent 100%),linear-gradient(to top,rgba(8,10,15,1) 0%,rgba(8,10,15,.4) 40%,transparent 100%)}
   .hero-content{position:relative;max-width:520px}
-  .hero-tag{display:inline-block;font-size:.7rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);padding:3px 10px;margin-bottom:1rem;border-radius:2px;font-family:'IBM Plex Mono',monospace}
-  .hero-title{font-family:'Bebas Neue',sans-serif;font-size:4.5rem;line-height:.92;letter-spacing:.04em;margin-bottom:1rem;text-shadow:0 0 30px rgba(160,128,80,.08)}
+  .hero-tag{display:inline-block;font-size:.7rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);padding:3px 10px;margin-bottom:1rem;border-radius:2px}
+  .hero-title{font-family:'Bebas Neue',sans-serif;font-size:4.5rem;line-height:.92;letter-spacing:.04em;margin-bottom:1rem}
   .hero-meta{display:flex;gap:1rem;align-items:center;margin-bottom:1rem;font-size:.82rem;color:var(--muted)}
   .hero-meta .rating{color:var(--accent);font-weight:600}
-  .hero-desc{font-size:.9rem;line-height:1.65;color:rgba(176,168,152,.75);margin-bottom:1.5rem;max-width:420px}
+  .hero-desc{font-size:.9rem;line-height:1.65;color:rgba(232,230,224,.75);margin-bottom:1.5rem;max-width:420px}
   .hero-btns{display:flex;gap:.75rem}
-  .btn{padding:.6rem 1.6rem;font-family:'IBM Plex Mono',monospace;font-size:.82rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;border:none;cursor:pointer;border-radius:2px;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem}
+  .btn{padding:.6rem 1.6rem;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;border:none;cursor:pointer;border-radius:2px;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem}
   .btn-primary{background:var(--accent);color:#080a0f}
   .btn-primary:hover{background:#f5cc6a;transform:translateY(-1px)}
-  .btn-outline{background:transparent;color:var(--text);border:1px solid rgba(176,168,152,.3)}
+  .btn-outline{background:transparent;color:var(--text);border:1px solid rgba(232,230,224,.3)}
   .btn-outline:hover{border-color:var(--accent);color:var(--accent)}
   .btn-trailer{background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.18)}
   .btn-trailer:hover{background:var(--accent2);border-color:var(--accent2);color:#fff}
@@ -41,11 +41,11 @@
   .search-bar{padding:1.5rem 3rem 0;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
   .search-wrap{position:relative;flex:1;max-width:420px}
   .search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
-  .search-wrap input{width:100%;background:var(--surface);border:1px solid rgba(255,255,255,.07);color:var(--text);font-family:'IBM Plex Mono','DM Sans',sans-serif;font-size:.88rem;padding:.6rem 1rem .6rem 2.5rem;border-radius:2px;outline:none;transition:border-color .2s}
+  .search-wrap input{width:100%;background:var(--surface);border:1px solid rgba(255,255,255,.07);color:var(--text);font-family:'DM Sans',sans-serif;font-size:.88rem;padding:.6rem 1rem .6rem 2.5rem;border-radius:2px;outline:none;transition:border-color .2s}
   .search-wrap input:focus{border-color:var(--accent)}
   .search-wrap input::placeholder{color:var(--muted)}
   .filter-pills{display:flex;gap:.5rem;flex-wrap:wrap}
-  .pill{padding:.35rem .9rem;font-size:.75rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;background:var(--surface);border:1px solid rgba(255,255,255,.07);color:var(--muted);cursor:pointer;border-radius:2px;transition:all .2s;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
+  .pill{padding:.35rem .9rem;font-size:.75rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;background:var(--surface);border:1px solid rgba(255,255,255,.07);color:var(--muted);cursor:pointer;border-radius:20px;transition:all .2s;white-space:nowrap}
   .pill:hover,.pill.active{background:var(--accent);border-color:var(--accent);color:#080a0f}
   .rows-wrapper{padding:2rem 3rem 4rem}
   .row{margin-bottom:3rem}
@@ -58,22 +58,22 @@
   .card{flex:0 0 var(--card-w);height:var(--card-h);border-radius:4px;overflow:hidden;position:relative;cursor:pointer;scroll-snap-align:start;transition:transform .25s cubic-bezier(.34,1.56,.64,1);z-index:1;opacity:0;animation:fadeUp .4s forwards}
   .card:hover{transform:scale(1.08) translateY(-4px);z-index:10}
   .card img{width:100%;height:100%;object-fit:cover;display:block;background:var(--surface2)}
-  .card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(8,8,10,.95) 0%,transparent 60%);opacity:0;transition:opacity .25s;display:flex;flex-direction:column;justify-content:flex-end;padding:.75rem}
+  .card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(8,10,15,.95) 0%,transparent 60%);opacity:0;transition:opacity .25s;display:flex;flex-direction:column;justify-content:flex-end;padding:.75rem}
   .card:hover .card-overlay{opacity:1}
   .card-type-badge{position:absolute;top:.5rem;left:.5rem;font-size:.6rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:2px}
   .badge-tv{background:var(--accent2);color:#fff}
-  .badge-movie{background:rgba(8,8,10,.75);color:var(--muted)}
+  .badge-movie{background:rgba(8,10,15,.75);color:var(--muted)}
   .card-name{font-size:.78rem;font-weight:500;line-height:1.3;margin-bottom:.25rem}
   .card-year{font-size:.68rem;color:var(--muted);margin-bottom:.5rem}
   .card-actions{display:flex;gap:.4rem}
   .card-btn{flex:1;padding:.3rem;font-size:.65rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border:none;border-radius:2px;cursor:pointer;transition:all .15s;text-decoration:none;text-align:center;display:block}
   .card-btn-imdb{background:var(--accent);color:#080a0f}
   .card-btn-imdb:hover{background:#f5cc6a}
-  .card-rating{position:absolute;top:.5rem;right:.5rem;background:rgba(8,8,10,.85);color:var(--accent);font-size:.65rem;font-weight:600;padding:2px 6px;border-radius:2px;font-family:'IBM Plex Mono',monospace}
+  .card-rating{position:absolute;top:.5rem;right:.5rem;background:rgba(8,10,15,.85);color:var(--accent);font-size:.65rem;font-weight:600;padding:2px 6px;border-radius:2px}
   .skeleton{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px;opacity:1!important}
   @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
   @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-  .modal-bg{position:fixed;inset:0;z-index:200;background:rgba(8,8,10,.92);display:flex;align-items:center;justify-content:center;padding:2rem;opacity:0;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(8px)}
+  .modal-bg{position:fixed;inset:0;z-index:200;background:rgba(8,10,15,.92);display:flex;align-items:center;justify-content:center;padding:2rem;opacity:0;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(8px)}
   .modal-bg.open{opacity:1;pointer-events:all}
   .modal{background:var(--surface);border:1px solid rgba(255,255,255,.06);border-radius:6px;max-width:740px;width:100%;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:transform .3s cubic-bezier(.34,1.56,.64,1);scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
   .modal-bg.open .modal{transform:translateY(0)}
@@ -81,14 +81,14 @@
   .modal-hero img{width:100%;height:100%;object-fit:cover;filter:brightness(.5) saturate(.7)}
   .modal-hero-overlay{position:absolute;inset:0;background:linear-gradient(to top,var(--surface) 0%,transparent 60%)}
   .modal-hero-title{position:absolute;bottom:1.25rem;left:1.5rem;right:1.5rem;font-family:'Bebas Neue',sans-serif;font-size:2.6rem;line-height:.95;letter-spacing:.04em}
-  .modal-close{position:absolute;top:1rem;right:1rem;background:rgba(8,8,10,.7);border:none;color:var(--text);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:background .2s}
+  .modal-close{position:absolute;top:1rem;right:1rem;background:rgba(8,10,15,.7);border:none;color:var(--text);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:background .2s}
   .modal-close:hover{background:var(--accent2)}
   .modal-body{padding:1.5rem}
   .modal-meta{display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
   .modal-meta-item{font-size:.75rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
   .modal-meta-item span{color:var(--text);font-weight:500}
   .modal-rating-big{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--accent);letter-spacing:.06em}
-  .modal-overview{font-size:.88rem;line-height:1.7;color:rgba(176,168,152,.7);margin-bottom:1.5rem}
+  .modal-overview{font-size:.88rem;line-height:1.7;color:rgba(232,230,224,.7);margin-bottom:1.5rem}
   .modal-actions{display:flex;gap:.75rem;margin-bottom:2rem;flex-wrap:wrap}
   .trailer-wrap{position:relative;width:100%;padding-top:56.25%;background:#000;flex-shrink:0}
   .trailer-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
@@ -99,7 +99,7 @@
   .seasons-section{border-top:1px solid rgba(255,255,255,.06);padding-top:1.5rem}
   .seasons-label{font-family:'Bebas Neue',sans-serif;font-size:1.15rem;letter-spacing:.1em;margin-bottom:1rem}
   .season-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.25rem}
-  .season-tab{padding:.3rem .8rem;font-size:.72rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;background:var(--surface2);border:1px solid rgba(255,255,255,.06);color:var(--muted);border-radius:2px;cursor:pointer;transition:all .15s;font-family:'IBM Plex Mono',monospace}
+  .season-tab{padding:.3rem .8rem;font-size:.72rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;background:var(--surface2);border:1px solid rgba(255,255,255,.06);color:var(--muted);border-radius:2px;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
   .season-tab:hover{color:var(--text);border-color:rgba(255,255,255,.15)}
   .season-tab.active{background:var(--accent);border-color:var(--accent);color:#080a0f}
   .episodes-list{display:flex;flex-direction:column;gap:.5rem}
@@ -113,7 +113,7 @@
   .ep-num{font-size:.68rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
   .ep-runtime{font-size:.68rem;color:var(--muted);white-space:nowrap}
   .ep-title{font-size:.82rem;font-weight:500;margin-bottom:.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ep-overview{font-size:.75rem;color:rgba(176,168,152,.55);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ep-overview{font-size:.75rem;color:rgba(232,230,224,.55);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .episodes-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem;letter-spacing:.06em}
   footer{text-align:center;padding:2rem;font-size:.72rem;color:var(--muted);letter-spacing:.06em;border-top:1px solid rgba(255,255,255,.04)}
   footer a{color:var(--accent);text-decoration:none}
@@ -125,16 +125,16 @@
   .btn-stream.hidden{display:none}
   .stream-picker{margin-top:1.5rem;border-top:1px solid rgba(255,255,255,.06);padding-top:1.5rem;display:none}
   .stream-picker.open{display:block}
-  .stream-picker-title{font-family:'IBM Plex Mono',monospace;font-size:1rem;letter-spacing:.1em;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;text-transform:uppercase}
+  .stream-picker-title{font-family:'Bebas Neue',sans-serif;font-size:1.15rem;letter-spacing:.1em;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
   .stream-picker-title .dot{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:pulse 1.5s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   .stream-list{display:flex;flex-direction:column;gap:.5rem}
   .stream-option{display:flex;align-items:center;gap:1rem;padding:.75rem;background:var(--surface2);border:1px solid rgba(255,255,255,.04);border-radius:3px;cursor:pointer;transition:all .15s}
   .stream-option:hover{border-color:var(--accent2);background:rgba(201,65,90,.08)}
-  .stream-quality{font-family:'IBM Plex Mono',monospace;font-size:1.3rem;color:var(--accent);min-width:55px;text-align:center}
+  .stream-quality{font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--accent);min-width:55px;text-align:center}
   .stream-info{flex:1;min-width:0}
   .stream-tags{font-size:.72rem;color:var(--muted);letter-spacing:.04em;margin-bottom:.2rem}
-  .stream-filename{font-size:.7rem;color:rgba(176,168,152,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stream-filename{font-size:.7rem;color:rgba(232,230,224,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stream-play-icon{font-size:1.1rem;color:var(--accent2);flex-shrink:0}
   .stream-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem}
   .stream-error{text-align:center;padding:1.5rem;color:var(--accent2);font-size:.82rem}
@@ -146,6 +146,28 @@
   .video-bar-close:hover{color:#fff;border-color:var(--accent2);background:var(--accent2)}
   .video-container{flex:1;display:flex;align-items:center;justify-content:center;background:#000}
   .video-container video{max-width:100%;max-height:100%;width:100%}
+  /* ─── THEME PANEL ─── */
+  .theme-btn{background:none;border:1px solid rgba(255,255,255,.1);color:var(--muted);width:32px;height:32px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:.9rem;flex-shrink:0}
+  .theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .theme-panel{position:fixed;top:0;right:-320px;width:300px;height:100vh;background:var(--surface);border-left:1px solid rgba(255,255,255,.06);z-index:300;transition:right .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow-y:auto}
+  .theme-panel.open{right:0}
+  .theme-panel-header{display:flex;align-items:center;justify-content:space-between;padding:1.25rem;border-bottom:1px solid rgba(255,255,255,.06)}
+  .theme-panel-title{font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:.1em}
+  .theme-panel-close{background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;transition:color .2s;padding:4px}
+  .theme-panel-close:hover{color:var(--text)}
+  .theme-list{padding:.75rem;display:flex;flex-direction:column;gap:.5rem}
+  .theme-card{padding:.75rem;border-radius:4px;cursor:pointer;border:2px solid rgba(255,255,255,.04);transition:all .2s;display:flex;align-items:center;gap:.75rem}
+  .theme-card:hover{border-color:rgba(255,255,255,.12)}
+  .theme-card.active{border-color:var(--accent)}
+  .theme-swatches{display:flex;gap:3px;flex-shrink:0}
+  .theme-swatch{width:16px;height:16px;border-radius:3px;border:1px solid rgba(255,255,255,.08)}
+  .theme-card-info{flex:1;min-width:0}
+  .theme-card-name{font-size:.8rem;font-weight:600;margin-bottom:2px}
+  .theme-card-desc{font-size:.65rem;color:var(--muted);line-height:1.3}
+  .theme-card-check{font-size:.85rem;opacity:0;transition:opacity .2s;flex-shrink:0}
+  .theme-card.active .theme-card-check{opacity:1}
+  .theme-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:299;opacity:0;pointer-events:none;transition:opacity .3s}
+  .theme-overlay.open{opacity:1;pointer-events:all}
 </style>
 </head>
 <body>
@@ -163,6 +185,7 @@
     <a onclick="filterGenre('27',this)">Horror</a>
     <a onclick="filterGenre('878',this)">Sci-Fi</a>
   </nav>
+  <button class="theme-btn" onclick="toggleThemePanel()" title="Themes">◐</button>
 </header>
 
 <div class="hero">
@@ -252,6 +275,15 @@
   <div class="video-container">
     <video id="video-player" controls autoplay></video>
   </div>
+</div>
+
+<div class="theme-overlay" id="theme-overlay" onclick="toggleThemePanel()"></div>
+<div class="theme-panel" id="theme-panel">
+  <div class="theme-panel-header">
+    <span class="theme-panel-title">Themes</span>
+    <button class="theme-panel-close" onclick="toggleThemePanel()">✕</button>
+  </div>
+  <div class="theme-list" id="theme-list"></div>
 </div>
 
 <footer>Watch_CMD — Powered by <a href="https://www.themoviedb.org" target="_blank">The Movie Database</a> &amp; linked to <a href="https://www.imdb.com" target="_blank">IMDb</a>. Not for commercial use.</footer>
@@ -583,6 +615,72 @@ function closeVideo(){
 
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('video-overlay').classList.contains('open'))closeVideo();});
 
+// ─── THEMES ───────────────────────────────────────────────────────────────────
+const THEMES = [
+  { id:'original', name:'Original', desc:'Gold & crimson. The classic Watch_CMD look.',
+    bg:'#080a0f', surface:'#0f1219', surface2:'#161b24', accent:'#e8b84b', accent2:'#c9415a', text:'#e8e6e0', muted:'#6b7280' },
+  { id:'whisper', name:'Whisper', desc:'Barely-there amber warmth. Subtle CRT vibes.',
+    bg:'#08080a', surface:'#0e0e10', surface2:'#141416', accent:'#a08050', accent2:'#8b6040', text:'#b0a898', muted:'#504840' },
+  { id:'neon-noir', name:'Neon Noir', desc:'Electric cyan on void black. Cyberpunk edge.',
+    bg:'#050508', surface:'#0a0c14', surface2:'#10131e', accent:'#00f0ff', accent2:'#ff003c', text:'#e0eaf0', muted:'#4a5568' },
+  { id:'velvet', name:'Velvet Cinema', desc:'Deep burgundy & warm gold. Movie theater luxury.',
+    bg:'#0c0608', surface:'#140a0e', surface2:'#1c1014', accent:'#d4a746', accent2:'#8b2942', text:'#f0e6e0', muted:'#6b5960' },
+  { id:'mint', name:'Mint Fresh', desc:'Crisp mint green on charcoal. Clean & modern.',
+    bg:'#0e1210', surface:'#141c18', surface2:'#1a241e', accent:'#5dfab0', accent2:'#fa5d8f', text:'#e0f0e8', muted:'#5a7066' },
+  { id:'ultraviolet', name:'Ultraviolet', desc:'Deep purple & electric violet. Bold & immersive.',
+    bg:'#08060e', surface:'#0e0a18', surface2:'#141020', accent:'#b44aff', accent2:'#ff4a8d', text:'#e8e0f5', muted:'#6858a0' },
+  { id:'phantom', name:'Phantom Green', desc:'Hacker terminal green on void. Raw & technical.',
+    bg:'#040604', surface:'#080c08', surface2:'#0c120c', accent:'#33ff66', accent2:'#ffcc33', text:'#c0e0c8', muted:'#3a6040' },
+];
+
+function applyTheme(id) {
+  const t = THEMES.find(th => th.id === id) || THEMES[0];
+  const root = document.documentElement;
+  root.style.setProperty('--bg', t.bg);
+  root.style.setProperty('--surface', t.surface);
+  root.style.setProperty('--surface2', t.surface2);
+  root.style.setProperty('--accent', t.accent);
+  root.style.setProperty('--accent2', t.accent2);
+  root.style.setProperty('--text', t.text);
+  root.style.setProperty('--muted', t.muted);
+  document.body.style.background = t.bg;
+  // Update active state in panel
+  document.querySelectorAll('.theme-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.theme === id);
+  });
+  try { localStorage.setItem('watchcmd-theme', id); } catch(e) {}
+}
+
+function buildThemePanel() {
+  const list = document.getElementById('theme-list');
+  const saved = (() => { try { return localStorage.getItem('watchcmd-theme'); } catch(e) { return null; } })() || 'original';
+  list.innerHTML = '';
+  THEMES.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'theme-card' + (t.id === saved ? ' active' : '');
+    card.dataset.theme = t.id;
+    card.onclick = () => applyTheme(t.id);
+    card.innerHTML = `<div class="theme-swatches">
+        <div class="theme-swatch" style="background:${t.bg}"></div>
+        <div class="theme-swatch" style="background:${t.accent}"></div>
+        <div class="theme-swatch" style="background:${t.accent2}"></div>
+      </div>
+      <div class="theme-card-info">
+        <div class="theme-card-name">${t.name}</div>
+        <div class="theme-card-desc">${t.desc}</div>
+      </div>
+      <div class="theme-card-check">✓</div>`;
+    list.appendChild(card);
+  });
+  applyTheme(saved);
+}
+
+function toggleThemePanel() {
+  document.getElementById('theme-panel').classList.toggle('open');
+  document.getElementById('theme-overlay').classList.toggle('open');
+}
+
+buildThemePanel();
 checkRD();
 init();
 </script>
