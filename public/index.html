@@ -267,8 +267,8 @@ function renderHero(item){
   fetchExt(item.id).then(id=>{if(id)lnk.href=`https://www.imdb.com/title/${id}`;});
 }
 
-async function fetchExt(id){
-  try{const d=await tmdb(`/${mode}/${id}/external_ids`);return d.imdb_id||null;}catch{return null;}
+async function fetchExt(id,type=mode){
+  try{const d=await tmdb(`/${type}/${id}/external_ids`);return d.imdb_id||null;}catch{return null;}
 }
 function cycleHero(){heroIdx=(heroIdx+1)%heroes.length;renderHero(heroes[heroIdx]);}
 
@@ -323,7 +323,7 @@ function buildCard(item,i){
       <div class="card-actions"><a class="card-btn card-btn-imdb" href="#" target="_blank">IMDb ↗</a></div>
     </div>`;
   card.querySelector('.card-btn-imdb').addEventListener('click',async function(e){
-    if(this.getAttribute('href')==='#'){e.preventDefault();const id=await fetchExt(item.id);this.href=id?`https://www.imdb.com/title/${id}`:`https://www.themoviedb.org/${isTV?'tv':'movie'}/${item.id}`;window.open(this.href,'_blank');}
+    if(this.getAttribute('href')==='#'){e.preventDefault();const id=await fetchExt(item.id,isTV?'tv':'movie');this.href=id?`https://www.imdb.com/title/${id}`:`https://www.themoviedb.org/${isTV?'tv':'movie'}/${item.id}`;window.open(this.href,'_blank');}
   });
   card.addEventListener('click',e=>{if(!e.target.classList.contains('card-btn-imdb'))openModal(item,isTV);});
   return card;
@@ -346,7 +346,7 @@ async function openModal(item,isTV){
   document.getElementById('seasons-section').style.display='none';
   document.getElementById('modal-seasons-meta').style.display='none';
   document.getElementById('modal-bg').classList.add('open');document.body.style.overflow='hidden';
-  fetchExt(item.id).then(id=>{if(id)document.getElementById('modal-imdb-link').href=`https://www.imdb.com/title/${id}`;});
+  fetchExt(item.id,isTV?'tv':'movie').then(id=>{if(id)document.getElementById('modal-imdb-link').href=`https://www.imdb.com/title/${id}`;});
 
   // Fetch trailer from our backend — it checks embeddability server-side
   api(`/api/trailer?tmdb_id=${item.id}&type=${isTV?'tv':'movie'}`).then(data=>{
