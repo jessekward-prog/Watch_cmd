@@ -86,45 +86,27 @@ app.get('/api/proxy/trailer/:videoId', async (req, res) => {
 const QUALITY_RANK = { '4K': 4, '1080p': 3, '720p': 2, '480p': 1, 'Unknown': 0 };
 const SOURCE_RANK = { 'BluRay': 4, 'WEB-DL': 3, 'WEBRip': 2, 'HDTV': 1, '': 0 };
 
-// SSE endpoint — streams results to frontend as they resolve
 app.get('/api/stream/:type/:tmdbId', async (req, res) => {
   const { type, tmdbId } = req.params;
   const season = req.query.s || null;
   const episode = req.query.e || null;
-  const useSSE = req.query.sse === '1';
 
   if (!RD_API_KEY) return res.json({ streams: [], error: 'RD_API_KEY not configured' });
 
-  // Set up SSE if requested
-  if (useSSE) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-  }
-
   try {
-    // Get IMDB ID
+    // Get IMDB ID from TMDb
     console.log(`[Stream] Lookup: ${type}/${tmdbId}`);
     const extRes = await fetch(`https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=${TMDB_KEY}`);
     const extData = await extRes.json();
     const imdbId = extData.imdb_id;
-    if (!imdbId) {
-      if (useSSE) { res.write(`data: ${JSON.stringify({done:true,error:'No IMDB ID found'})}\n\n`); return res.end(); }
-      return res.json({ streams: [], error: 'No IMDB ID found' });
-    }
-
-    if (useSSE) res.write(`data: ${JSON.stringify({status:'Searching torrents...'})}\n\n`);
+    if (!imdbId) return res.json({ streams: [], error: 'No IMDB ID found' });
+    console.log(`[Stream] IMDB: ${imdbId}`);
 
     // Search torrents
     const tp = new TorrentProvider();
     const searchId = (type === 'tv' && season && episode) ? `${imdbId}:${season}:${episode}` : imdbId;
     const torrents = await tp.search(type === 'tv' ? 'series' : 'movie', searchId);
-
-    if (torrents.length === 0) {
-      if (useSSE) { res.write(`data: ${JSON.stringify({done:true,error:'No torrents found'})}\n\n`); return res.end(); }
-      return res.json({ streams: [], error: 'No torrents found' });
-    }
+    if (torrents.length === 0) return res.json({ streams: [], error: 'No torrents found' });
 
     // Sort by quality
     torrents.sort((a, b) => {
@@ -132,53 +114,35 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
       return qd !== 0 ? qd : (SOURCE_RANK[b.sourceType] || 0) - (SOURCE_RANK[a.sourceType] || 0);
     });
 
-    const top = torrents.slice(0, 8);
-    if (useSSE) res.write(`data: ${JSON.stringify({status:`Resolving ${top.length} torrents through RD...`})}\n\n`);
-    console.log(`[Stream] Resolving ${top.length} torrents in parallel...`);
-
-    // Resolve ALL in parallel
+    // Resolve through RD
     const rd = new RealDebridClient(RD_API_KEY);
-    const resolveOne = async (t) => {
+    const top = torrents.slice(0, 10);
+    console.log(`[Stream] Resolving ${top.length} torrents...`);
+    const streams = [];
+
+    for (const t of top) {
       try {
         const result = await rd.resolveStream(t.infoHash, t.fileIdx, season ? +season : null, episode ? +episode : null);
         if (result && result.url) {
-          return {
+          streams.push({
             url: result.url,
             quality: t.quality || 'Unknown',
             tags: [t.quality, t.sourceType, t.hdr, t.codec, t.audio, t.sizeStr].filter(Boolean).join(' · '),
             filename: result.filename || '',
             filesize: result.filesize || 0
-          };
+          });
+          console.log(`[Stream] + ${t.quality} ${t.sourceType} → ${result.filename}`);
         }
       } catch (err) {
         console.error(`[Stream] Failed: ${err.message}`);
       }
-      return null;
-    };
-
-    if (useSSE) {
-      // Stream results as they come in
-      const promises = top.map(t => resolveOne(t).then(stream => {
-        if (stream) {
-          res.write(`data: ${JSON.stringify({stream})}\n\n`);
-          console.log(`[Stream] + ${stream.quality} → ${stream.filename}`);
-        }
-      }));
-      await Promise.allSettled(promises);
-      res.write(`data: ${JSON.stringify({done:true})}\n\n`);
-      res.end();
-    } else {
-      // Non-SSE: resolve all in parallel, return at once
-      const results = await Promise.allSettled(top.map(resolveOne));
-      const streams = results.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
-      console.log(`[Stream] Returning ${streams.length} streams`);
-      res.json({ streams });
     }
 
+    console.log(`[Stream] Returning ${streams.length} streams`);
+    res.json({ streams });
   } catch (err) {
     console.error('[Stream] Error:', err.message);
-    if (useSSE) { res.write(`data: ${JSON.stringify({done:true,error:err.message})}\n\n`); res.end(); }
-    else res.json({ streams: [], error: err.message });
+    res.json({ streams: [], error: err.message });
   }
 });
 
