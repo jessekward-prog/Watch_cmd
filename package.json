@@ -1,7 +1,7 @@
 {
   "name": "watch-cmd",
   "version": "1.0.0",
-  "description": "Movie & TV browser with server-proxied trailers",
+  "description": "Watch_CMD + Chaos_RD — Movie browser with Stremio Real-Debrid addon",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
