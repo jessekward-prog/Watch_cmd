@@ -118,6 +118,34 @@
   footer{text-align:center;padding:2rem;font-size:.72rem;color:var(--muted);letter-spacing:.06em;border-top:1px solid rgba(255,255,255,.04)}
   footer a{color:var(--accent);text-decoration:none}
   @media(max-width:768px){header{padding:0 1.25rem}nav{gap:.75rem}.hero{padding:1.5rem}.hero-title{font-size:3rem}.search-bar{padding:1rem 1.25rem 0}.rows-wrapper{padding:1.5rem 1.25rem 3rem}:root{--card-w:140px;--card-h:210px}}
+  /* ─── STREAM UI ─── */
+  .btn-stream{background:var(--accent2);color:#fff;border:none}
+  .btn-stream:hover{background:#d4354d;transform:translateY(-1px)}
+  .btn-stream.loading{opacity:.6;pointer-events:none}
+  .btn-stream.hidden{display:none}
+  .stream-picker{margin-top:1.5rem;border-top:1px solid rgba(255,255,255,.06);padding-top:1.5rem;display:none}
+  .stream-picker.open{display:block}
+  .stream-picker-title{font-family:'Bebas Neue',sans-serif;font-size:1.15rem;letter-spacing:.1em;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+  .stream-picker-title .dot{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .stream-list{display:flex;flex-direction:column;gap:.5rem}
+  .stream-option{display:flex;align-items:center;gap:1rem;padding:.75rem;background:var(--surface2);border:1px solid rgba(255,255,255,.04);border-radius:3px;cursor:pointer;transition:all .15s}
+  .stream-option:hover{border-color:var(--accent2);background:rgba(201,65,90,.08)}
+  .stream-quality{font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--accent);min-width:55px;text-align:center}
+  .stream-info{flex:1;min-width:0}
+  .stream-tags{font-size:.72rem;color:var(--muted);letter-spacing:.04em;margin-bottom:.2rem}
+  .stream-filename{font-size:.7rem;color:rgba(232,230,224,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stream-play-icon{font-size:1.1rem;color:var(--accent2);flex-shrink:0}
+  .stream-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem}
+  .stream-error{text-align:center;padding:1.5rem;color:var(--accent2);font-size:.82rem}
+  .video-overlay{position:fixed;inset:0;z-index:9999;background:#000;display:none;flex-direction:column}
+  .video-overlay.open{display:flex}
+  .video-bar{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1rem;background:rgba(0,0,0,.9);z-index:1}
+  .video-bar-title{font-size:.8rem;color:var(--muted);letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;margin-right:1rem}
+  .video-bar-close{background:none;border:1px solid rgba(255,255,255,.15);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;padding:.3rem .8rem;border-radius:2px;cursor:pointer;transition:all .15s}
+  .video-bar-close:hover{color:#fff;border-color:var(--accent2);background:var(--accent2)}
+  .video-container{flex:1;display:flex;align-items:center;justify-content:center;background:#000}
+  .video-container video{max-width:100%;max-height:100%;width:100%}
 </style>
 </head>
 <body>
@@ -198,9 +226,14 @@
       </div>
       <p class="modal-overview" id="modal-overview"></p>
       <div class="modal-actions">
+        <button class="btn btn-stream hidden" id="stream-btn" onclick="fetchStreams()">⚡ Stream</button>
         <button class="btn btn-trailer loading" id="trailer-btn" onclick="playTrailer()">▶ Loading Trailer…</button>
         <a class="btn btn-primary" id="modal-imdb-link" href="#" target="_blank">↗ View on IMDb</a>
         <a class="btn btn-outline" id="modal-tmdb-link" href="#" target="_blank">TMDb Page</a>
+      </div>
+      <div class="stream-picker" id="stream-picker">
+        <div class="stream-picker-title"><span class="dot"></span> Available Streams</div>
+        <div class="stream-list" id="stream-list"></div>
       </div>
       <div class="seasons-section" id="seasons-section" style="display:none">
         <div class="seasons-label">Episodes</div>
@@ -211,12 +244,23 @@
   </div>
 </div>
 
+<div class="video-overlay" id="video-overlay">
+  <div class="video-bar">
+    <div class="video-bar-title" id="video-title">Playing...</div>
+    <button class="video-bar-close" onclick="closeVideo()">✕ Close</button>
+  </div>
+  <div class="video-container">
+    <video id="video-player" controls autoplay></video>
+  </div>
+</div>
+
 <footer>Watch_CMD — Powered by <a href="https://www.themoviedb.org" target="_blank">The Movie Database</a> &amp; linked to <a href="https://www.imdb.com" target="_blank">IMDb</a>. Not for commercial use.</footer>
 
 <script>
 const IMG='https://image.tmdb.org/t/p/';
 const MG={},TG={};
 let mode='movie',sort='popular',genre='all',heroes=[],heroIdx=0,searchTmt,trailerData=null;
+let currentModalItem=null,currentModalIsTV=false,rdEnabled=false;
 
 async function api(path){const r=await fetch(path);if(!r.ok)throw new Error(r.status);return r.json();}
 async function tmdb(path){return api('/api/tmdb'+path);}
@@ -336,8 +380,15 @@ function buildCard(item,i){
 
 async function openModal(item,isTV){
   trailerData=null;closeTrailer();
+  currentModalItem=item;currentModalIsTV=isTV;
   const btn=document.getElementById('trailer-btn');
   btn.className='btn btn-trailer loading';btn.textContent='▶ Loading Trailer…';
+  // Reset stream picker
+  document.getElementById('stream-picker').classList.remove('open');
+  document.getElementById('stream-list').innerHTML='';
+  const sbtn=document.getElementById('stream-btn');
+  if(rdEnabled){sbtn.classList.remove('hidden');sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';}
+  else{sbtn.classList.add('hidden');}
   document.getElementById('modal-backdrop').src=item.backdrop_path?`${IMG}w780${item.backdrop_path}`:`${IMG}w342${item.poster_path}`;
   document.getElementById('modal-title').textContent=titleOf(item);
   document.getElementById('modal-rating-text').textContent=item.vote_average?.toFixed(1)||'—';
@@ -445,6 +496,72 @@ async function doSearch(q){
   render(tv.results||[],'tr-t','sc-t',true);
 }
 
+// ─── STREAMING ────────────────────────────────────────────────────────────────
+async function checkRD(){
+  try{const r=await api('/api/rd/status');rdEnabled=r.configured;}catch{rdEnabled=false;}
+}
+
+async function fetchStreams(){
+  if(!currentModalItem)return;
+  const sbtn=document.getElementById('stream-btn');
+  sbtn.className='btn btn-stream loading';sbtn.textContent='⚡ Finding streams…';
+  const picker=document.getElementById('stream-picker');
+  const list=document.getElementById('stream-list');
+  picker.classList.add('open');
+  list.innerHTML='<div class="stream-loading">Searching torrents & resolving through Real-Debrid…</div>';
+
+  const type=currentModalIsTV?'tv':'movie';
+  let url=`/api/stream/${type}/${currentModalItem.id}`;
+  // For TV, if a season tab is active, use that season/episode
+  // For now just get the movie or first available
+  try{
+    const data=await api(url);
+    if(!data.streams||data.streams.length===0){
+      list.innerHTML=`<div class="stream-error">${data.error||'No cached streams found on Real-Debrid'}</div>`;
+      sbtn.className='btn btn-stream';sbtn.textContent='⚡ No Streams';
+      return;
+    }
+    list.innerHTML='';
+    data.streams.forEach((s,i)=>{
+      const opt=document.createElement('div');opt.className='stream-option';
+      opt.onclick=()=>playStream(s.url,s.filename||titleOf(currentModalItem));
+      opt.innerHTML=`<div class="stream-quality">${s.quality}</div>
+        <div class="stream-info">
+          <div class="stream-tags">${s.tags}</div>
+          <div class="stream-filename">${s.filename}</div>
+        </div>
+        <div class="stream-play-icon">▶</div>`;
+      list.appendChild(opt);
+    });
+    sbtn.className='btn btn-stream';sbtn.textContent=`⚡ ${data.streams.length} Streams`;
+  }catch(err){
+    list.innerHTML=`<div class="stream-error">Error: ${err.message}</div>`;
+    sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';
+  }
+}
+
+function playStream(url,title){
+  const overlay=document.getElementById('video-overlay');
+  const video=document.getElementById('video-player');
+  const vtitle=document.getElementById('video-title');
+  vtitle.textContent=title;
+  video.src=url;
+  overlay.classList.add('open');
+  document.body.style.overflow='hidden';
+  video.play().catch(()=>{});
+}
+
+function closeVideo(){
+  const overlay=document.getElementById('video-overlay');
+  const video=document.getElementById('video-player');
+  video.pause();video.src='';
+  overlay.classList.remove('open');
+  document.body.style.overflow='';
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('video-overlay').classList.contains('open'))closeVideo();});
+
+checkRD();
 init();
 </script>
 </body>
