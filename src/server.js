@@ -1,4 +1,4 @@
-// Watch_CMD + Chaos_RD v2.0 — All-in-one server
+// Watch_CMD + Chaos_RD v2.1 — YTS API for torrent search
 require('dotenv').config();
 const express = require('express');
 const fetch = require('node-fetch');
@@ -102,34 +102,47 @@ class RealDebridClient {
 }
 
 // =============================================================================
-//  TORRENT PROVIDER (inlined)
+//  TORRENT PROVIDER (inlined) — YTS API for movies, Torrentio as fallback
 // =============================================================================
 class TorrentProvider {
   constructor() {
-    this.zileanUrl = 'https://zilean.elfhosted.com';
+    this.ytsUrl = 'https://movies-api.accel.li/api/v2';
     this.torrentioUrl = 'https://torrentio.strem.fun';
   }
 
-  async searchZilean(type, imdbId) {
+  // YTS — proper public API, no blocking, returns torrent hashes directly
+  async searchYTS(imdbId) {
     try {
-      let cleanImdb = imdbId, season = null, episode = null;
-      if (type === 'series') { const p = imdbId.split(':'); cleanImdb = p[0]; season = p[1]; episode = p[2]; }
-      let url = `${this.zileanUrl}/dmm/filtered?ImdbId=${cleanImdb}`;
-      if (season) url += `&Season=${season}`;
-      if (episode) url += `&Episode=${episode}`;
-      console.log(`[Torrent] Zilean: ${url}`);
+      const cleanImdb = imdbId.split(':')[0];
+      const url = `${this.ytsUrl}/list_movies.json?query_term=${cleanImdb}&limit=20`;
+      console.log(`[Torrent] YTS: ${url}`);
       const r = await fetch(url, { timeout: 15000, headers: { 'Accept': 'application/json' } });
-      if (!r.ok) { console.log(`[Torrent] Zilean ${r.status}`); return []; }
+      if (!r.ok) { console.log(`[Torrent] YTS ${r.status}`); return []; }
       const data = await r.json();
-      if (!Array.isArray(data) || !data.length) { console.log('[Torrent] Zilean: no results'); return []; }
-      console.log(`[Torrent] Zilean: ${data.length} results`);
-      return data.filter(i => i.infoHash).map(i => ({
-        infoHash: i.infoHash.toLowerCase(), title: i.rawTitle || i.filename || 'Unknown',
-        fileIdx: null, source: 'zilean', ...this.parse(i.rawTitle || i.filename || '')
-      }));
-    } catch (err) { console.error(`[Torrent] Zilean error: ${err.message}`); return []; }
+      if (!data.data || !data.data.movies || !data.data.movies.length) { console.log('[Torrent] YTS: no results'); return []; }
+
+      const results = [];
+      for (const movie of data.data.movies) {
+        if (!movie.torrents) continue;
+        for (const t of movie.torrents) {
+          if (!t.hash) continue;
+          results.push({
+            infoHash: t.hash.toLowerCase(),
+            title: `${movie.title_long} [${t.quality}] [${t.type}]`,
+            fileIdx: null, source: 'yts',
+            quality: t.quality === '2160p' ? '4K' : t.quality || 'Unknown',
+            sourceType: t.type === 'bluray' ? 'BluRay' : t.type === 'web' ? 'WEB-DL' : '',
+            hdr: '', codec: '', audio: '',
+            sizeStr: t.size || ''
+          });
+        }
+      }
+      console.log(`[Torrent] YTS: ${results.length} torrents`);
+      return results;
+    } catch (err) { console.error(`[Torrent] YTS error: ${err.message}`); return []; }
   }
 
+  // Torrentio — fallback (blocked on cloud IPs but works locally)
   async searchTorrentio(type, imdbId) {
     try {
       const url = `${this.torrentioUrl}/stream/${type}/${imdbId}.json`;
@@ -149,7 +162,11 @@ class TorrentProvider {
 
   async search(type, imdbId) {
     console.log(`[Torrent] Searching ${type}: ${imdbId}`);
-    const results = await Promise.allSettled([this.searchZilean(type, imdbId), this.searchTorrentio(type, imdbId)]);
+    const searches = [this.searchTorrentio(type, imdbId)];
+    // YTS only has movies
+    if (type === 'movie') searches.push(this.searchYTS(imdbId));
+
+    const results = await Promise.allSettled(searches);
     const all = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
     const seen = new Set();
     const unique = all.filter(t => { if (seen.has(t.infoHash)) return false; seen.add(t.infoHash); return true; });
