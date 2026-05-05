@@ -1,0 +1,45 @@
+{
+  "name": "Watch_CMD",
+  "short_name": "Watch_CMD",
+  "description": "Netflix-style movie & TV show browser with Real-Debrid streaming support",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080a0f",
+  "theme_color": "#e8b84b",
+  "categories": ["entertainment"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse Movies",
+      "short_name": "Movies",
+      "description": "Browse popular movies",
+      "url": "/?mode=movie",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Browse TV Shows",
+      "short_name": "TV Shows",
+      "description": "Browse popular TV shows",
+      "url": "/?mode=tv",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ],
+  "screenshots": [],
+  "related_applications": [],
+  "prefer_related_applications": false
+}
