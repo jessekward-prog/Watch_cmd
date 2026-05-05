@@ -136,6 +136,9 @@
   .ep-title{font-size:.82rem;font-weight:500;margin-bottom:.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ep-overview{font-size:.75rem;color:rgba(232,230,224,.55);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .episodes-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem;letter-spacing:.06em}
+  .ep-stream-btn{flex-shrink:0;padding:.28rem .65rem;font-size:.62rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--accent2);color:#fff;border:none;border-radius:2px;cursor:pointer;transition:background .15s;white-space:nowrap}
+  .ep-stream-btn:hover{background:#d4354d}
+  .ep-stream-btn.hidden{display:none}
   footer{text-align:center;padding:2rem;font-size:.72rem;color:var(--muted);letter-spacing:.06em;border-top:1px solid rgba(255,255,255,.04)}
   footer a{color:var(--accent);text-decoration:none}
   @media(max-width:768px){
@@ -292,7 +295,7 @@
         <a class="btn btn-outline" id="modal-tmdb-link" href="#" target="_blank">TMDb Page</a>
       </div>
       <div class="stream-picker" id="stream-picker">
-        <div class="stream-picker-title"><span class="dot"></span> Available Streams</div>
+        <div class="stream-picker-title" id="stream-picker-title"><span class="dot"></span> Available Streams</div>
         <div class="stream-list" id="stream-list"></div>
       </div>
       <div class="seasons-section" id="seasons-section" style="display:none">
@@ -522,7 +525,14 @@ async function loadEpisodes(tvId,seasonNum){
         <div class="ep-header"><span class="ep-num">Ep ${ep.episode_number}${air?' · '+air:''}</span><span class="ep-runtime">${ep.runtime?ep.runtime+'m':''}</span></div>
         <div class="ep-title">${ep.name||'Episode '+ep.episode_number}</div>
         <div class="ep-overview">${ep.overview||'No description available.'}</div>
-      </div>`;
+      </div>
+      <button class="ep-stream-btn${rdEnabled?'':' hidden'}" title="Stream S${seasonNum}E${ep.episode_number}">⚡</button>`;
+    if(rdEnabled){
+      row.querySelector('.ep-stream-btn').onclick=(e)=>{
+        e.stopPropagation();
+        fetchStreams(seasonNum,ep.episode_number,`S${String(seasonNum).padStart(2,'0')}E${String(ep.episode_number).padStart(2,'0')} — ${ep.name||'Episode '+ep.episode_number}`);
+      };
+    }
     list.appendChild(row);
   });
 }
@@ -573,7 +583,7 @@ async function checkRD(){
   try{const r=await api('/api/rd/status');rdEnabled=r.configured;}catch{rdEnabled=false;}
 }
 
-async function fetchStreams(){
+async function fetchStreams(season=null,episode=null,epLabel=null){
   if(!currentModalItem)return;
   const sbtn=document.getElementById('stream-btn');
   sbtn.className='btn btn-stream loading';sbtn.textContent='⚡ Searching…';
@@ -582,8 +592,17 @@ async function fetchStreams(){
   picker.classList.add('open');
   list.innerHTML='<div class="stream-loading">Searching torrents…</div>';
 
+  // Scroll the stream picker into view inside the modal
+  setTimeout(()=>picker.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+
+  const pickerTitle=document.getElementById('stream-picker-title');
+  if(pickerTitle) pickerTitle.innerHTML=epLabel
+    ?`<span class="dot"></span> ${epLabel}`
+    :'<span class="dot"></span> Available Streams';
+
   const type=currentModalIsTV?'tv':'movie';
-  const url=`/api/stream/${type}/${currentModalItem.id}?sse=1`;
+  let url=`/api/stream/${type}/${currentModalItem.id}?sse=1`;
+  if(season!==null&&episode!==null)url+=`&s=${season}&e=${episode}`;
   let count=0;
 
   try{
