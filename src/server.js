@@ -450,11 +450,13 @@ app.get('/api/transcode', (req, res) => {
   res.setHeader('Transfer-Encoding', 'chunked');
 
   const ff = spawn('ffmpeg', [
+    '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    '-probesize', '10M',
+    '-loglevel', 'error',
     '-i', url,
-    '-map', '0:v:0', '-map', '0:a:0',
-    '-c:v', 'copy',          // copy video unchanged
-    '-c:a', 'aac', '-b:a', '192k',  // re-encode audio to AAC
-    '-movflags', 'frag_keyframe+empty_moov',
+    '-c:v', 'copy',
+    '-c:a', 'aac', '-ac', '2', '-b:a', '192k',
+    '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
     '-f', 'mp4', 'pipe:1',
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
