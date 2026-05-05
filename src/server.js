@@ -146,6 +146,39 @@ class TorrentProvider {
     } catch (err) { console.error(`[Torrent] YTS error: ${err.message}`); return []; }
   }
 
+  // EZTV — TV-only public API, works fine on cloud/datacenter IPs
+  async searchEZTV(searchId) {
+    try {
+      const [rawId, season, episode] = searchId.split(':');
+      const numericId = rawId.replace(/^tt/i, '');
+      const url = `https://eztv.re/api/get-torrents?imdb_id=${numericId}&limit=100`;
+      console.log(`[Torrent] EZTV: ${url}`);
+      const r = await fetch(url, { timeout: 15000, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) { console.log(`[Torrent] EZTV ${r.status}`); return []; }
+      const data = await r.json();
+      if (!data.torrents || !data.torrents.length) { console.log('[Torrent] EZTV: no results'); return []; }
+
+      let torrents = data.torrents;
+      // Filter to the specific episode when requested
+      if (season && episode) {
+        const s = parseInt(season, 10), e = parseInt(episode, 10);
+        const specific = torrents.filter(t => parseInt(t.season, 10) === s && parseInt(t.episode, 10) === e);
+        if (specific.length) torrents = specific;
+      }
+
+      const results = torrents.map(t => {
+        const hash = (t.hash || '').toLowerCase();
+        if (!hash) return null;
+        const sizeBytes = parseInt(t.size_bytes, 10) || 0;
+        const sizeStr = sizeBytes > 1e9 ? `${(sizeBytes/1e9).toFixed(1)} GB` : sizeBytes > 1e6 ? `${(sizeBytes/1e6).toFixed(0)} MB` : '';
+        return { infoHash: hash, title: t.filename || 'Unknown', fileIdx: null, source: 'eztv', sizeStr, ...this.parse(t.filename || '') };
+      }).filter(Boolean);
+
+      console.log(`[Torrent] EZTV: ${results.length} torrents`);
+      return results;
+    } catch (err) { console.error(`[Torrent] EZTV error: ${err.message}`); return []; }
+  }
+
   // Torrentio — fallback (blocked on cloud IPs but works locally)
   async searchTorrentio(type, imdbId) {
     try {
@@ -167,8 +200,8 @@ class TorrentProvider {
   async search(type, imdbId) {
     console.log(`[Torrent] Searching ${type}: ${imdbId}`);
     const searches = [this.searchTorrentio(type, imdbId)];
-    // YTS only has movies
     if (type === 'movie') searches.push(this.searchYTS(imdbId));
+    if (type === 'series') searches.push(this.searchEZTV(imdbId));
 
     const results = await Promise.allSettled(searches);
     const all = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
