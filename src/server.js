@@ -6,6 +6,7 @@ const ytdl = require('ytdl-core');
 const { spawn } = require('child_process');
 const cors = require('cors');
 const path = require('path');
+const { pool, init: initDB } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,6 +14,7 @@ const TMDB_KEY = process.env.TMDB_KEY || '';
 const RD_API_KEY = process.env.RD_API_KEY || '';
 
 app.use(cors());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 // =============================================================================
@@ -426,9 +428,44 @@ app.get('/api/transcode', (req, res) => {
   res.on('close', kill);
 });
 
+// =============================================================================
+//  WATCH HISTORY
+// =============================================================================
+const dbErr = (res, err) => { console.error('[DB]', err.message); res.status(500).json({ error: err.message }); };
+
+app.get('/api/history', async (_, res) => {
+  if (!pool) return res.json([]);
+  try { const { rows } = await pool.query('SELECT * FROM watch_history ORDER BY updated_at DESC'); res.json(rows); }
+  catch (err) { dbErr(res, err); }
+});
+
+app.post('/api/history', async (req, res) => {
+  if (!pool) return res.json({ ok: true });
+  const { tmdb_id, media_type, title, poster_path, progress, position_sec, duration_sec, watched, season = -1, episode = -1 } = req.body;
+  try {
+    await pool.query(`
+      INSERT INTO watch_history (tmdb_id,media_type,title,poster_path,progress,position_sec,duration_sec,watched,season,episode,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+      ON CONFLICT (tmdb_id,media_type,season,episode) DO UPDATE SET
+        progress=EXCLUDED.progress, position_sec=EXCLUDED.position_sec,
+        duration_sec=EXCLUDED.duration_sec, watched=EXCLUDED.watched,
+        title=EXCLUDED.title, poster_path=EXCLUDED.poster_path, updated_at=NOW()
+    `, [tmdb_id, media_type, title, poster_path, progress, position_sec, duration_sec, watched, season, episode]);
+    res.json({ ok: true });
+  } catch (err) { dbErr(res, err); }
+});
+
+app.delete('/api/history/:tmdbId', async (req, res) => {
+  if (!pool) return res.json({ ok: true });
+  try { await pool.query('DELETE FROM watch_history WHERE tmdb_id=$1', [req.params.tmdbId]); res.json({ ok: true }); }
+  catch (err) { dbErr(res, err); }
+});
+
 app.get('/api/rd/status', (_, res) => res.json({ configured: !!RD_API_KEY }));
 app.get('/health', (_, res) => res.json({ status: 'ok', rd: !!RD_API_KEY }));
 app.get('*', (_, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+
+initDB().catch(err => console.error('[DB] init failed:', err.message));
 
 app.listen(PORT, () => {
   const rd = RD_API_KEY ? '✓ Active' : '✕ Not set';

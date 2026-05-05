@@ -136,6 +136,16 @@
   .ep-title{font-size:.82rem;font-weight:500;margin-bottom:.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ep-overview{font-size:.75rem;color:rgba(232,230,224,.55);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .episodes-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem;letter-spacing:.06em}
+  /* ─── WATCH HISTORY ─── */
+  .watch-badge{position:absolute;bottom:.45rem;right:.45rem;background:#22c55e;color:#fff;font-size:.65rem;font-weight:700;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:3;pointer-events:none}
+  .card-progress{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,.12);z-index:3;pointer-events:none}
+  .card-progress-fill{height:100%;background:var(--accent2);border-radius:0 2px 0 0}
+  .continue-remove{position:absolute;top:.4rem;right:.4rem;background:rgba(8,10,15,.85);border:none;color:var(--muted);width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:.65rem;display:flex;align-items:center;justify-content:center;z-index:5;transition:background .15s}
+  .continue-remove:hover{background:var(--accent2);color:#fff}
+  .ep-history-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+  .btn-watched{background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.3)}
+  .btn-watched:hover{background:rgba(34,197,94,.22)}
+  .btn-watched.active{background:#22c55e;color:#fff;border-color:#22c55e}
   .ep-stream-btn{flex-shrink:0;padding:.28rem .65rem;font-size:.62rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--accent2);color:#fff;border:none;border-radius:2px;cursor:pointer;transition:background .15s;white-space:nowrap}
   .ep-stream-btn:hover{background:#d4354d}
   .ep-stream-btn.hidden{display:none}
@@ -296,6 +306,7 @@
       <div class="modal-actions">
         <button class="btn btn-stream hidden" id="stream-btn" onclick="fetchStreams()">⚡ Stream</button>
         <button class="btn btn-trailer loading" id="trailer-btn" onclick="playTrailer()">▶ Loading Trailer…</button>
+        <button class="btn btn-watched" id="watched-btn" onclick="toggleWatched()">+ Mark Watched</button>
         <a class="btn btn-primary" id="modal-imdb-link" href="#" target="_blank">↗ View on IMDb</a>
         <a class="btn btn-outline" id="modal-tmdb-link" href="#" target="_blank">TMDb Page</a>
       </div>
@@ -343,6 +354,106 @@ const MG={},TG={};
 let mode='movie',sort='popular',genre='all',heroes=[],heroIdx=0,searchTmt,trailerData=null;
 let currentModalItem=null,currentModalIsTV=false,rdEnabled=false;
 
+// ─── WATCH HISTORY ────────────────────────────────────────────────────────────
+const watchHistory=new Map(); // key: `${tmdbId}_${type}_${season}_${episode}`
+let _pendingEpisode={season:null,episode:null};
+let _currentPlayInfo=null;
+let _progressInterval=null;
+
+function histKey(tmdbId,type,season=-1,episode=-1){return`${tmdbId}_${type}_${season}_${episode}`;}
+
+async function loadWatchHistory(){
+  try{
+    const rows=await api('/api/history');
+    watchHistory.clear();
+    rows.forEach(r=>watchHistory.set(histKey(r.tmdb_id,r.media_type,r.season,r.episode),r));
+  }catch{}
+}
+
+function getCardHistory(tmdbId,type){
+  if(type==='movie')return watchHistory.get(histKey(tmdbId,'movie'))||null;
+  let best=null;
+  for(const v of watchHistory.values()){
+    if(v.tmdb_id===tmdbId&&v.media_type==='tv'){
+      if(!best||new Date(v.updated_at)>new Date(best.updated_at))best=v;
+    }
+  }
+  return best;
+}
+
+async function saveHistory(info,progress,positionSec,durationSec){
+  const body={tmdb_id:info.tmdbId,media_type:info.mediaType,title:info.title,
+    poster_path:info.posterPath,progress,position_sec:positionSec,
+    duration_sec:durationSec,watched:progress>0.9,
+    season:info.season??-1,episode:info.episode??-1};
+  try{
+    await fetch('/api/history',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    watchHistory.set(histKey(body.tmdb_id,body.media_type,body.season,body.episode),{...body,updated_at:new Date().toISOString()});
+  }catch{}
+}
+
+function startProgressTracking(){
+  stopProgressTracking();
+  if(!_currentPlayInfo)return;
+  const video=document.getElementById('video-player');
+  _progressInterval=setInterval(()=>{
+    if(!video.duration||video.paused||video.ended)return;
+    const p=video.currentTime/video.duration;
+    saveHistory(_currentPlayInfo,p,Math.floor(video.currentTime),Math.floor(video.duration));
+    if(p>0.9){stopProgressTracking();}
+  },5000);
+}
+
+function stopProgressTracking(){
+  if(_progressInterval){clearInterval(_progressInterval);_progressInterval=null;}
+}
+
+async function removeFromHistory(tmdbId){
+  try{
+    await fetch(`/api/history/${tmdbId}`,{method:'DELETE'});
+    for(const[k,v]of watchHistory)if(v.tmdb_id===tmdbId)watchHistory.delete(k);
+    loadRows();
+  }catch{}
+}
+
+async function toggleWatched(){
+  if(!currentModalItem)return;
+  const type=currentModalIsTV?'tv':'movie';
+  const key=histKey(currentModalItem.id,type);
+  const cur=watchHistory.get(key);
+  const nowWatched=!(cur?.watched);
+  await saveHistory({tmdbId:currentModalItem.id,mediaType:type,title:titleOf(currentModalItem),
+    posterPath:currentModalItem.poster_path||null,season:-1,episode:-1},
+    nowWatched?1:0,0,0);
+  const btn=document.getElementById('watched-btn');
+  btn.textContent=nowWatched?'✓ Watched':'+ Mark Watched';
+  btn.classList.toggle('active',nowWatched);
+}
+
+async function openModalById(tmdbId,isTV){
+  try{const item=await tmdb(`/${isTV?'tv':'movie'}/${tmdbId}`);if(item)openModal(item,isTV);}catch{}
+}
+
+function buildContinueCard(h,i){
+  const card=document.createElement('div');card.className='card';card.style.animationDelay=`${i*40}ms`;
+  const poster=h.poster_path?`${IMG}w342${h.poster_path}`:'';
+  const pct=Math.round((h.progress||0)*100);
+  const sub=h.season>0
+    ?`S${String(h.season).padStart(2,'0')}E${String(h.episode).padStart(2,'0')}`
+    :h.position_sec>60?`${Math.floor(h.position_sec/60)}m in`:'Just started';
+  card.innerHTML=`${poster?`<img src="${poster}" alt="${h.title}" loading="lazy">`:'<div style="width:100%;height:100%;background:var(--surface2)"></div>'}
+    <div class="card-progress"><div class="card-progress-fill" style="width:${pct}%"></div></div>
+    <div class="card-overlay" style="opacity:1">
+      <div class="card-name">${h.title}</div>
+      <div class="card-year" style="color:var(--accent)">${sub} · ${pct}%</div>
+    </div>`;
+  const rm=document.createElement('button');rm.className='continue-remove';rm.textContent='✕';rm.title='Remove';
+  rm.onclick=e=>{e.stopPropagation();removeFromHistory(h.tmdb_id);};
+  card.appendChild(rm);
+  card.onclick=()=>openModalById(h.tmdb_id,h.media_type==='tv');
+  return card;
+}
+
 async function api(path){const r=await fetch(path);if(!r.ok)throw new Error(r.status);return r.json();}
 async function tmdb(path){return api('/api/tmdb'+path);}
 const titleOf=i=>i.title||i.name||'';
@@ -351,7 +462,7 @@ const gmap=()=>mode==='movie'?MG:TG;
 
 async function init(){
   try{
-    const[mg,tg]=await Promise.all([tmdb('/genre/movie/list'),tmdb('/genre/tv/list')]);
+    const[mg,tg]=await Promise.all([tmdb('/genre/movie/list'),tmdb('/genre/tv/list'),loadWatchHistory()]);
     mg.genres.forEach(g=>MG[g.id]=g.name);
     tg.genres.forEach(g=>TG[g.id]=g.name);
     await Promise.all([loadHero(),loadRows()]);
@@ -419,6 +530,16 @@ const TROWS=[
 
 async function loadRows(){
   const w=document.getElementById('rows-wrapper');w.innerHTML='';
+  // Continue Watching row
+  const inProgress=[...watchHistory.values()].filter(h=>h.progress>0.05&&!h.watched)
+    .sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
+  if(inProgress.length){
+    const cwRow=document.createElement('div');cwRow.className='row';
+    cwRow.innerHTML=`<div class="row-header"><div class="row-title">Continue Watching</div><div class="row-count">${inProgress.length} title${inProgress.length>1?'s':''}</div></div><div class="cards-track" id="cw-track"></div>`;
+    w.appendChild(cwRow);
+    const track=cwRow.querySelector('#cw-track');
+    inProgress.forEach((h,i)=>track.appendChild(buildContinueCard(h,i)));
+  }
   let cfgs=mode==='movie'?MROWS:TROWS;
   if(sort!=='popular'){
     const mm={top_rated:'/movie/top_rated',now_playing:'/movie/now_playing',upcoming:'/movie/upcoming'};
@@ -452,6 +573,18 @@ function buildCard(item,i){
       <div class="card-year">${yearOf(item)}</div>
       <div class="card-actions"><a class="card-btn card-btn-imdb" href="#" target="_blank">IMDb ↗</a></div>
     </div>`;
+  // Inject watch history badge / progress bar
+  const hist=getCardHistory(item.id,isTV?'tv':'movie');
+  if(hist){
+    if(hist.watched){
+      const badge=document.createElement('div');badge.className='watch-badge';badge.textContent='✓';
+      card.appendChild(badge);
+    } else if(hist.progress>0.05){
+      const bar=document.createElement('div');bar.className='card-progress';
+      bar.innerHTML=`<div class="card-progress-fill" style="width:${Math.round(hist.progress*100)}%"></div>`;
+      card.appendChild(bar);
+    }
+  }
   card.querySelector('.card-btn-imdb').addEventListener('click',async function(e){
     if(this.getAttribute('href')==='#'){e.preventDefault();const id=await fetchExt(item.id,isTV?'tv':'movie');this.href=id?`https://www.imdb.com/title/${id}`:`https://www.themoviedb.org/${isTV?'tv':'movie'}/${item.id}`;window.open(this.href,'_blank');}
   });
@@ -482,6 +615,12 @@ async function openModal(item,isTV){
   document.getElementById('modal-tmdb-link').href=turl;document.getElementById('modal-imdb-link').href=turl;
   document.getElementById('seasons-section').style.display='none';
   document.getElementById('modal-seasons-meta').style.display='none';
+  // Watched button state
+  const wbtn=document.getElementById('watched-btn');
+  const mtype=isTV?'tv':'movie';
+  const mhist=watchHistory.get(histKey(item.id,mtype));
+  wbtn.textContent=mhist?.watched?'✓ Watched':'+ Mark Watched';
+  wbtn.classList.toggle('active',!!(mhist?.watched));
   document.getElementById('modal-bg').classList.add('open');document.body.style.overflow='hidden';
   fetchExt(item.id,isTV?'tv':'movie').then(id=>{if(id)document.getElementById('modal-imdb-link').href=`https://www.imdb.com/title/${id}`;});
 
@@ -591,6 +730,7 @@ async function checkRD(){
 
 async function fetchStreams(season=null,episode=null,epLabel=null){
   if(!currentModalItem)return;
+  _pendingEpisode={season,episode};
   const sbtn=document.getElementById('stream-btn');
   sbtn.className='btn btn-stream loading';sbtn.textContent='⚡ Searching…';
   const picker=document.getElementById('stream-picker');
@@ -692,10 +832,37 @@ function playStream(url,title,rawUrl){
   const errBanner=document.getElementById('video-codec-error');
   errBanner.style.display='none';
   vtitle.textContent=title;
+
+  // Build play info for history tracking
+  if(currentModalItem){
+    const isTV=currentModalIsTV;
+    _currentPlayInfo={
+      tmdbId:currentModalItem.id,
+      mediaType:isTV?'tv':'movie',
+      title:titleOf(currentModalItem),
+      posterPath:currentModalItem.poster_path||null,
+      season:_pendingEpisode.season??-1,
+      episode:_pendingEpisode.episode??-1,
+    };
+    // Restore saved position
+    const hkey=histKey(_currentPlayInfo.tmdbId,_currentPlayInfo.mediaType,_currentPlayInfo.season,_currentPlayInfo.episode);
+    const saved=watchHistory.get(hkey);
+    video.onloadedmetadata=()=>{
+      if(saved&&saved.position_sec>10&&saved.progress<0.9){
+        video.currentTime=saved.position_sec;
+      }
+      video.onloadedmetadata=null;
+    };
+  } else {
+    _currentPlayInfo=null;
+  }
+
   video.src=url;
   overlay.classList.add('open');
   document.body.style.overflow='hidden';
   video.play().catch(()=>{});
+  startProgressTracking();
+
   // Detect stalled audio after playback starts (codec incompatibility)
   video.onplaying=()=>{
     if(video.mozHasAudio===false||(typeof video.webkitAudioDecodedByteCount!=='undefined'&&video.webkitAudioDecodedByteCount===0)){
@@ -708,12 +875,15 @@ function playStream(url,title,rawUrl){
 }
 
 function closeVideo(){
+  stopProgressTracking();
   _rawStreamUrl=null;
+  _currentPlayInfo=null;
   const overlay=document.getElementById('video-overlay');
   const video=document.getElementById('video-player');
   document.getElementById('video-codec-error').style.display='none';
   document.getElementById('video-bar-copy').textContent='📋 Copy Link';
   video.onplaying=null;
+  video.onloadedmetadata=null;
   video.pause();video.src='';
   overlay.classList.remove('open');
   document.body.style.overflow='';
