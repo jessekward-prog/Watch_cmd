@@ -42,6 +42,7 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
   if (url.pathname.startsWith('/api/proxy/trailer')) return;
   if (url.pathname.startsWith('/api/stream')) return;
+  if (url.pathname.startsWith('/api/transcode')) return;
 
   // API calls — network first, no cache (always fresh data)
   if (url.pathname.startsWith('/api/') || url.hostname === 'api.themoviedb.org') {

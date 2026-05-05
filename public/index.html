@@ -173,7 +173,10 @@
   .stream-info{flex:1;min-width:0}
   .stream-tags{font-size:.72rem;color:var(--muted);letter-spacing:.04em;margin-bottom:.2rem}
   .stream-filename{font-size:.7rem;color:rgba(232,230,224,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .stream-play-icon{font-size:1.1rem;color:var(--accent2);flex-shrink:0}
+  .stream-actions{display:flex;gap:.35rem;flex-shrink:0;align-items:center}
+  .stream-act-btn{padding:.32rem .55rem;font-size:.72rem;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:2px;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .stream-act-btn:hover{background:var(--accent2);border-color:var(--accent2);color:#fff}
+  .stream-act-btn.copied{background:var(--accent);border-color:var(--accent);color:#080a0f}
   .stream-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem}
   .stream-error{text-align:center;padding:1.5rem;color:var(--accent2);font-size:.82rem}
   .video-overlay{position:fixed;inset:0;z-index:9999;background:#000;display:none;flex-direction:column}
@@ -182,6 +185,8 @@
   .video-bar-title{font-size:.8rem;color:var(--muted);letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;margin-right:1rem}
   .video-bar-close{background:none;border:1px solid rgba(255,255,255,.15);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;padding:.3rem .8rem;border-radius:2px;cursor:pointer;transition:all .15s}
   .video-bar-close:hover{color:#fff;border-color:var(--accent2);background:var(--accent2)}
+  .video-bar-copy{background:none;border:1px solid rgba(255,255,255,.12);color:var(--muted);font-size:.75rem;padding:.3rem .65rem;border-radius:2px;cursor:pointer;transition:all .15s}
+  .video-bar-copy:hover{color:var(--text);border-color:rgba(255,255,255,.3)}
   .video-container{flex:1;display:flex;align-items:center;justify-content:center;background:#000}
   .video-container video{max-width:100%;max-height:100%;width:100%}
   /* ─── THEME PANEL ─── */
@@ -310,6 +315,7 @@
 <div class="video-overlay" id="video-overlay">
   <div class="video-bar">
     <div class="video-bar-title" id="video-title">Playing...</div>
+    <button class="video-bar-copy" id="video-bar-copy" onclick="copyStreamLink()" title="Copy direct link">📋 Copy Link</button>
     <button class="video-bar-close" onclick="closeVideo()">✕ Close</button>
   </div>
   <div class="video-container">
@@ -620,14 +626,29 @@ async function fetchStreams(season=null,episode=null,epLabel=null){
         if(count===0) list.innerHTML=''; // clear loading message
         count++;
         const s=data.stream;
+        const label=s.filename||titleOf(currentModalItem);
         const opt=document.createElement('div');opt.className='stream-option';
-        opt.onclick=()=>playStream(s.url,s.filename||titleOf(currentModalItem));
+        opt.onclick=()=>playStream(s.url,label,s.url);
         opt.innerHTML=`<div class="stream-quality">${s.quality}</div>
           <div class="stream-info">
             <div class="stream-tags">${s.tags}</div>
             <div class="stream-filename">${s.filename}</div>
           </div>
-          <div class="stream-play-icon">▶</div>`;
+          <div class="stream-actions">
+            <button class="stream-act-btn" title="Play direct (fastest)">▶ Play</button>
+            <button class="stream-act-btn" title="Transcode audio via server — fixes AC3/DTS no-audio">🔊 Fix Audio</button>
+            <button class="stream-act-btn" title="Copy direct link for VLC / external player">📋</button>
+          </div>`;
+        const [btnPlay,btnFix,btnCopy]=opt.querySelectorAll('.stream-act-btn');
+        btnPlay.onclick=e=>{e.stopPropagation();playStream(s.url,label,s.url);};
+        btnFix.onclick=e=>{e.stopPropagation();playStream(`/api/transcode?url=${encodeURIComponent(s.url)}`,label,s.url);};
+        btnCopy.onclick=e=>{
+          e.stopPropagation();
+          navigator.clipboard.writeText(s.url).then(()=>{
+            btnCopy.textContent='✓';btnCopy.classList.add('copied');
+            setTimeout(()=>{btnCopy.textContent='📋';btnCopy.classList.remove('copied');},2000);
+          }).catch(()=>prompt('Copy this link:',s.url));
+        };
         list.appendChild(opt);
         sbtn.className='btn btn-stream';sbtn.textContent=`⚡ ${count} Stream${count>1?'s':''}`;
       }
@@ -653,7 +674,18 @@ async function fetchStreams(season=null,episode=null,epLabel=null){
   }
 }
 
-function playStream(url,title){
+let _rawStreamUrl=null;
+function copyStreamLink(){
+  const btn=document.getElementById('video-bar-copy');
+  const url=_rawStreamUrl||document.getElementById('video-player').src;
+  navigator.clipboard.writeText(url).then(()=>{
+    btn.textContent='✓ Copied';btn.style.color='var(--accent)';
+    setTimeout(()=>{btn.textContent='📋 Copy Link';btn.style.color='';},2000);
+  }).catch(()=>prompt('Copy this link:',url));
+}
+
+function playStream(url,title,rawUrl){
+  _rawStreamUrl=rawUrl||url;
   const overlay=document.getElementById('video-overlay');
   const video=document.getElementById('video-player');
   const vtitle=document.getElementById('video-title');
@@ -676,9 +708,11 @@ function playStream(url,title){
 }
 
 function closeVideo(){
+  _rawStreamUrl=null;
   const overlay=document.getElementById('video-overlay');
   const video=document.getElementById('video-player');
   document.getElementById('video-codec-error').style.display='none';
+  document.getElementById('video-bar-copy').textContent='📋 Copy Link';
   video.onplaying=null;
   video.pause();video.src='';
   overlay.classList.remove('open');
