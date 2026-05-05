@@ -110,10 +110,9 @@ class RealDebridClient {
 // =============================================================================
 class TorrentProvider {
   constructor() {
-    this.ytsUrl      = 'https://yts.mx/api/v2';            // official YTS API
+    this.ytsUrl       = 'https://yts.mx/api/v2';
     this.torrentioUrl = 'https://torrentio.strem.fun';
-    this.eztvUrl     = 'https://eztv.re/api';
-    this.zileanUrl   = 'https://zilean.elfhosted.com';
+    this.eztvUrl      = 'https://eztv.re/api';
   }
 
   // YTS — proper public API, no blocking, returns torrent hashes directly
@@ -177,30 +176,6 @@ class TorrentProvider {
     } catch (err) { console.error(`[Torrent] EZTV: ${err.message}`); return []; }
   }
 
-  // Zilean — indexes DMM hashes, designed to work on cloud/datacenter IPs
-  async searchZilean(searchId) {
-    try {
-      const [rawId, season, episode] = searchId.split(':');
-      // Zilean accepts the full imdb id with "tt" prefix
-      const query = season && episode ? `${rawId} S${String(season).padStart(2,'0')}E${String(episode).padStart(2,'0')}` : rawId;
-      const url = `${this.zileanUrl}/dmm/search?queryText=${encodeURIComponent(query)}`;
-      console.log(`[Torrent] Zilean: ${url}`);
-      const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json' } });
-      if (!r.ok) { console.log(`[Torrent] Zilean ${r.status}`); return []; }
-      const data = await r.json();
-      const items = Array.isArray(data) ? data : (data.data || data.results || []);
-      if (!items.length) { console.log('[Torrent] Zilean: no results'); return []; }
-      const results = items.map(t => {
-        const hash = (t.infoHash || t.hash || '').toLowerCase();
-        if (!hash) return null;
-        const title = t.filename || t.title || t.rawTitle || '';
-        return { infoHash: hash, title, fileIdx: null, source: 'zilean', sizeStr: '', ...this.parse(title) };
-      }).filter(Boolean);
-      console.log(`[Torrent] Zilean: ${results.length} torrents`);
-      return results;
-    } catch (err) { console.error(`[Torrent] Zilean: ${err.message}`); return []; }
-  }
-
   // Torrentio — fallback (blocked on cloud IPs but works locally)
   async searchTorrentio(type, imdbId) {
     try {
@@ -223,10 +198,7 @@ class TorrentProvider {
     console.log(`[Torrent] Searching ${type}: ${imdbId}`);
     const searches = [this.searchTorrentio(type, imdbId)];
     if (type === 'movie') searches.push(this.searchYTS(imdbId));
-    if (type === 'series') {
-      searches.push(this.searchEZTV(imdbId));
-      searches.push(this.searchZilean(imdbId));
-    }
+    if (type === 'series') searches.push(this.searchEZTV(imdbId));
 
     const results = await Promise.allSettled(searches);
     const all = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
