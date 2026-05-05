@@ -49,6 +49,15 @@ class RealDebridClient {
   async unrestrictLink(link) { return this.request('POST', '/unrestrict/link', { link }); }
   async deleteTorrent(id) { return this.request('DELETE', `/torrents/delete/${id}`); }
 
+  // Returns { hash: { rd: [...] } } — only hashes with non-empty rd arrays are cached
+  async checkInstantAvailability(hashes) {
+    if (!hashes.length) return {};
+    try {
+      const data = await this.request('GET', `/torrents/instantAvailability/${hashes.slice(0, 40).join('/')}`);
+      return data || {};
+    } catch { return {}; }
+  }
+
   findEpisodeFile(files, season, episode) {
     if (!files || !files.length) return null;
     const vExts = /\.(mkv|mp4|avi|mov|wmv|flv|webm)$/i;
@@ -74,8 +83,16 @@ class RealDebridClient {
 
   async resolveStream(infoHash, fileIdx, season, episode) {
     let tid = null;
+    const TRACKERS = [
+      'udp://open.demonii.com:1337',
+      'udp://tracker.openbittorrent.com:80',
+      'udp://tracker.opentrackr.org:1337',
+      'udp://tracker.coppersurfer.tk:6969',
+      'udp://glotorrents.pw:6969',
+    ].map(t => `&tr=${encodeURIComponent(t)}`).join('');
     try {
-      const add = await this.addMagnet(`magnet:?xt=urn:btih:${infoHash}`);
+      const magnet = `magnet:?xt=urn:btih:${infoHash}${TRACKERS}`;
+      const add = await this.addMagnet(magnet);
       if (!add || !add.id) return null;
       tid = add.id;
       let info = await this.getTorrentInfo(tid);
@@ -91,6 +108,8 @@ class RealDebridClient {
           if (bf) sel = String(bf.id);
         }
         await this.selectFiles(tid, sel);
+        // Give RD a moment to process the cached torrent
+        await new Promise(r => setTimeout(r, 1500));
         info = await this.getTorrentInfo(tid);
         if (!info) { await this.cleanup(tid); return null; }
       }
@@ -100,6 +119,7 @@ class RealDebridClient {
         if (u && u.download) return { url: u.download, filename: u.filename || '', filesize: u.filesize || 0 };
       }
 
+      console.log(`[RD] Hash ${infoHash.slice(0,8)} status: ${info.status} — skipping`);
       await this.cleanup(tid);
       return null;
     } catch (err) { if (tid) await this.cleanup(tid); return null; }
@@ -184,7 +204,7 @@ class TorrentProvider {
     try {
       const url = `${this.torrentioUrl}/stream/${type}/${imdbId}.json`;
       console.log(`[Torrent] Torrentio: ${url}`);
-      const r = await fetch(url, { timeout: 8000, headers: { 'User-Agent': 'Stremio', 'Accept': 'application/json' } });
+      const r = await fetch(url, { timeout: 4000, headers: { 'User-Agent': 'Stremio', 'Accept': 'application/json' } });
       if (r.status === 403) { console.log('[Torrent] Torrentio 403'); return []; }
       if (!r.ok) return [];
       const data = await r.json();
@@ -368,11 +388,23 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
       return     (AUDIO_RANK[b.audio]||2)        - (AUDIO_RANK[a.audio]||2);
     });
 
-    const top = torrents.slice(0, 8);
-    if (useSSE) res.write(`data: ${JSON.stringify({status:`Resolving ${top.length} torrents through RD...`})}\n\n`);
-    console.log(`[Stream] Resolving ${top.length} torrents...`);
-
     const rd = new RealDebridClient(RD_API_KEY);
+
+    // Check which torrents are already cached in RD (instant availability)
+    if (useSSE) res.write(`data: ${JSON.stringify({status:'Checking RD cache...'})}\n\n`);
+    const top20 = torrents.slice(0, 20);
+    const avail = await rd.checkInstantAvailability(top20.map(t => t.infoHash));
+    const cached = top20.filter(t => {
+      const a = avail[t.infoHash];
+      return a && a.rd && a.rd.length > 0;
+    });
+    console.log(`[Stream] RD cache: ${cached.length}/${top20.length} torrents available`);
+
+    // Use cached torrents; if none, fall back to top 5 (they may still resolve if previously added)
+    const top = cached.length > 0 ? cached.slice(0, 10) : top20.slice(0, 5);
+    if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results anyway...'})}\n\n`);
+    else if (useSSE) res.write(`data: ${JSON.stringify({status:`Found ${cached.length} cached streams, resolving...`})}\n\n`);
+    console.log(`[Stream] Resolving ${top.length} torrents...`);
     const resolve = async (t) => {
       try {
         const result = await rd.resolveStream(t.infoHash, t.fileIdx, season ? +season : null, episode ? +episode : null);
