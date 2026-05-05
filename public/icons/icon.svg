@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#080a0f"/>
+  <!-- Film strip left -->
+  <rect x="32" y="80" width="36" height="352" rx="6" fill="#161b24"/>
+  <rect x="40" y="104" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="40" y="152" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="40" y="200" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="40" y="248" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="40" y="296" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="40" y="344" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="40" y="392" width="20" height="28" rx="3" fill="#080a0f"/>
+  <!-- Film strip right -->
+  <rect x="444" y="80" width="36" height="352" rx="6" fill="#161b24"/>
+  <rect x="452" y="104" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="452" y="152" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="452" y="200" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="452" y="248" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="452" y="296" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="452" y="344" width="20" height="28" rx="3" fill="#080a0f"/>
+  <rect x="452" y="392" width="20" height="28" rx="3" fill="#080a0f"/>
+  <!-- Screen area -->
+  <rect x="80" y="120" width="352" height="272" rx="10" fill="#0f1219"/>
+  <!-- Play button circle -->
+  <circle cx="256" cy="232" r="72" fill="#e8b84b" opacity="0.15"/>
+  <circle cx="256" cy="232" r="56" fill="#e8b84b" opacity="0.25"/>
+  <!-- Play triangle -->
+  <polygon points="234,200 234,264 296,232" fill="#e8b84b"/>
+  <!-- "CMD" text bar at bottom of screen -->
+  <rect x="80" y="352" width="352" height="40" rx="0" fill="#c9415a"/>
+  <!-- W text -->
+  <text x="100" y="384" font-family="monospace" font-weight="700" font-size="26" fill="#ffffff" letter-spacing="2">WATCH_CMD</text>
+</svg>

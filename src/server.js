@@ -62,7 +62,11 @@ class RealDebridClient {
     if (!files || !files.length) return null;
     const vExts = /\.(mkv|mp4|avi|mov|wmv|flv|webm)$/i;
     const vFiles = files.filter(f => vExts.test(f.path));
-    return vFiles.length ? vFiles.reduce((a, b) => b.bytes > (a ? a.bytes : 0) ? b : a, null) : null;
+    if (!vFiles.length) return null;
+    // Prefer MP4 (browser-native) over MKV; within same container pick largest
+    const mp4s = vFiles.filter(f => /\.mp4$/i.test(f.path));
+    const pool = mp4s.length ? mp4s : vFiles;
+    return pool.reduce((a, b) => b.bytes > (a ? a.bytes : 0) ? b : a, null);
   }
 
   async resolveStream(infoHash, fileIdx, season, episode) {
@@ -203,14 +207,24 @@ app.get('/api/tmdb/*', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/trailer/:type/:id', async (req, res) => {
-  const { type, id } = req.params;
+app.get('/api/trailer', async (req, res) => {
+  const { tmdb_id: id, type = 'movie' } = req.query;
+  if (!id) return res.status(400).json({ error: 'tmdb_id required' });
+
+  const makeUrls = (key, title) => ({
+    youtubeKey: key,
+    embedUrl: `https://www.youtube.com/embed/${key}?autoplay=1&rel=0&modestbranding=1`,
+    watchUrl: `https://www.youtube.com/watch?v=${key}`,
+    title: title || 'Official Trailer',
+  });
+
   try {
     const kcType = type === 'tv' ? 'shows' : 'movies';
     const kcRes = await fetch(`https://api.kinocheck.com/${kcType}?tmdb_id=${id}&categories=Trailer`, { headers: { Accept: 'application/json' } });
     if (kcRes.ok) {
       const d = await kcRes.json(); const v = (d.trailer || d.videos || []);
-      if (v.length > 0 && v[0].youtube_video_id) return res.json({ source: 'kinocheck', youtubeKey: v[0].youtube_video_id, title: v[0].title || 'Official Trailer' });
+      if (v.length > 0 && v[0].youtube_video_id)
+        return res.json(makeUrls(v[0].youtube_video_id, v[0].title));
     }
   } catch (_) {}
   try {
@@ -218,7 +232,7 @@ app.get('/api/trailer/:type/:id', async (req, res) => {
     const d = await r.json(); const vs = d.results || [];
     const pick = t => vs.find(v => v.site === 'YouTube' && v.type === t && v.official) || vs.find(v => v.site === 'YouTube' && v.type === t);
     const v = pick('Trailer') || pick('Teaser') || vs.find(v => v.site === 'YouTube');
-    if (v) return res.json({ source: 'tmdb', youtubeKey: v.key, title: v.name || 'Official Trailer' });
+    if (v) return res.json(makeUrls(v.key, v.name));
   } catch (_) {}
   res.status(404).json({ error: 'No trailer found' });
 });
@@ -228,16 +242,48 @@ app.get('/api/proxy/trailer/:videoId', async (req, res) => {
   if (!ytdl.validateID(videoId)) return res.status(400).json({ error: 'Invalid video ID' });
   try {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    const info = await ytdl.getInfo(url, { requestOptions: { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; WatchCMD/1.0)' } } });
-    let format;
-    try { format = ytdl.chooseFormat(info.formats, { filter: f => f.container === 'mp4' && f.hasAudio && f.hasVideo && f.height <= 720, quality: 'highestvideo' }); }
-    catch (_) { format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' }); }
-    if (!format) return res.status(404).json({ error: 'No suitable format' });
+    const reqOpts = { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } };
+    const info = await ytdl.getInfo(url, { requestOptions: reqOpts });
+
+    // Prefer combined MP4 with audio at ≤720p, then any combined stream
+    let format =
+      ytdl.chooseFormat(info.formats, { filter: f => f.container === 'mp4' && f.hasAudio && f.hasVideo && f.height <= 720, quality: 'highestvideo' }).catch?.(() => null) ??
+      (() => {
+        try { return ytdl.chooseFormat(info.formats, { filter: f => f.hasAudio && f.hasVideo, quality: 'highestvideo' }); } catch { return null; }
+      })() ??
+      (() => {
+        try { return ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' }); } catch { return null; }
+      })();
+
+    // chooseFormat throws (doesn't return null) — normalise with try/catch chain
+    if (!format) {
+      try { format = ytdl.chooseFormat(info.formats, { filter: f => f.hasAudio && f.hasVideo, quality: 'highestvideo' }); } catch (_) {}
+    }
+    if (!format) {
+      try { format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' }); } catch (_) {}
+    }
+    if (!format) return res.status(404).json({ error: 'No suitable format found' });
+
+    const contentLength = format.contentLength ? parseInt(format.contentLength, 10) : null;
+    const range = req.headers.range;
+
+    if (range && contentLength) {
+      const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(startStr, 10);
+      const end = endStr ? parseInt(endStr, 10) : contentLength - 1;
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${contentLength}`);
+      res.setHeader('Content-Length', end - start + 1);
+    } else if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+
     res.setHeader('Content-Type', format.mimeType || 'video/mp4');
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    if (format.contentLength) res.setHeader('Content-Length', format.contentLength);
-    ytdl(url, { format, requestOptions: { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; WatchCMD/1.0)' } } })
-      .on('error', err => { if (!res.headersSent) res.status(500).end(); })
+
+    ytdl(url, { format, requestOptions: reqOpts })
+      .on('error', () => { if (!res.headersSent) res.status(500).end(); })
       .pipe(res);
   } catch (err) { if (!res.headersSent) res.status(500).json({ error: err.message }); }
 });
@@ -246,7 +292,11 @@ app.get('/api/proxy/trailer/:videoId', async (req, res) => {
 //  REAL-DEBRID STREAM ENDPOINT
 // =============================================================================
 const QUALITY_RANK = { '4K': 4, '1080p': 3, '720p': 2, '480p': 1, 'Unknown': 0 };
-const SOURCE_RANK = { 'BluRay': 4, 'WEB-DL': 3, 'WEBRip': 2, 'HDTV': 1, '': 0 };
+const SOURCE_RANK  = { 'BluRay': 4, 'WEB-DL': 3, 'WEBRip': 2, 'HDTV': 1, '': 0 };
+// Browser codec compatibility: AVC (H.264) plays natively everywhere; HEVC needs HW decoder
+const CODEC_RANK   = { 'AVC': 3, '': 2, 'AV1': 2, 'HEVC': 1 };
+// Browser audio compatibility: AAC/no-tag are safe; AC3/DTS require plugins
+const AUDIO_RANK   = { 'AAC': 3, '': 2, 'DD5.1': 1, 'DTS': 0, 'DTS-HD': 0, 'TrueHD': 0, 'Atmos': 0 };
 
 app.get('/api/stream/:type/:tmdbId', async (req, res) => {
   const { type, tmdbId } = req.params;
@@ -279,8 +329,10 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     }
 
     torrents.sort((a, b) => {
-      const qd = (QUALITY_RANK[b.quality]||0) - (QUALITY_RANK[a.quality]||0);
-      return qd !== 0 ? qd : (SOURCE_RANK[b.sourceType]||0) - (SOURCE_RANK[a.sourceType]||0);
+      const qd = (QUALITY_RANK[b.quality]||0)    - (QUALITY_RANK[a.quality]||0);    if (qd) return qd;
+      const sd = (SOURCE_RANK[b.sourceType]||0)  - (SOURCE_RANK[a.sourceType]||0);  if (sd) return sd;
+      const cd = (CODEC_RANK[b.codec]||2)        - (CODEC_RANK[a.codec]||2);        if (cd) return cd;
+      return     (AUDIO_RANK[b.audio]||2)        - (AUDIO_RANK[a.audio]||2);
     });
 
     const top = torrents.slice(0, 8);
