@@ -405,14 +405,21 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results anyway...'})}\n\n`);
     else if (useSSE) res.write(`data: ${JSON.stringify({status:`Found ${cached.length} cached streams, resolving...`})}\n\n`);
     console.log(`[Stream] Resolving ${top.length} torrents...`);
+    const MAX_BYTES = 8 * 1024 * 1024 * 1024; // 8 GB
     const resolve = async (t) => {
       try {
         const result = await rd.resolveStream(t.infoHash, t.fileIdx, season ? +season : null, episode ? +episode : null);
-        if (result && result.url) return {
-          url: result.url, quality: t.quality || 'Unknown',
-          tags: [t.quality, t.sourceType, t.hdr, t.codec, t.audio, t.sizeStr].filter(Boolean).join(' · '),
-          filename: result.filename || '', filesize: result.filesize || 0
-        };
+        if (result && result.url) {
+          if (result.filesize && result.filesize > MAX_BYTES) {
+            console.log(`[Stream] Skipped ${result.filename} — ${(result.filesize/1e9).toFixed(1)} GB > 8 GB`);
+            return null;
+          }
+          return {
+            url: result.url, quality: t.quality || 'Unknown',
+            tags: [t.quality, t.sourceType, t.hdr, t.codec, t.audio, t.sizeStr].filter(Boolean).join(' · '),
+            filename: result.filename || '', filesize: result.filesize || 0
+          };
+        }
       } catch (e) {} return null;
     };
 
