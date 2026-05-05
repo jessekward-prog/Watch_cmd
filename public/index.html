@@ -88,8 +88,6 @@
   .card-year{font-size:.68rem;color:var(--muted);margin-bottom:.5rem}
   .card-actions{display:flex;gap:.4rem}
   .card-btn{flex:1;padding:.3rem;font-size:.65rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border:none;border-radius:2px;cursor:pointer;transition:all .15s;text-decoration:none;text-align:center;display:block}
-  .card-btn-imdb{background:var(--accent);color:#080a0f}
-  .card-btn-imdb:hover{background:#f5cc6a}
   .card-rating{position:absolute;top:.5rem;right:.5rem;background:rgba(8,10,15,.85);color:var(--accent);font-size:.65rem;font-weight:600;padding:2px 6px;border-radius:2px}
   .skeleton{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px;opacity:1!important}
   @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
@@ -252,7 +250,7 @@
     <div class="hero-meta"><span class="rating" id="hero-rating">—</span><span id="hero-year">—</span></div>
     <p class="hero-desc" id="hero-desc"></p>
     <div class="hero-btns">
-      <a class="btn btn-primary" id="hero-imdb" href="#" target="_blank">↗ Open on IMDb</a>
+      <button class="btn btn-primary" onclick="openModal(heroes[heroIdx],mode==='tv')">More Info</button>
       <button class="btn btn-outline" onclick="cycleHero()">Next Featured</button>
     </div>
   </div>
@@ -307,7 +305,6 @@
         <button class="btn btn-stream hidden" id="stream-btn" onclick="fetchStreams()">⚡ Stream</button>
         <button class="btn btn-trailer loading" id="trailer-btn" onclick="playTrailer()">▶ Loading Trailer…</button>
         <button class="btn btn-watched" id="watched-btn" onclick="toggleWatched()">+ Mark Watched</button>
-        <a class="btn btn-primary" id="modal-imdb-link" href="#" target="_blank">↗ View on IMDb</a>
         <a class="btn btn-outline" id="modal-tmdb-link" href="#" target="_blank">TMDb Page</a>
       </div>
       <div class="stream-picker" id="stream-picker">
@@ -346,7 +343,7 @@
   <div class="theme-list" id="theme-list"></div>
 </div>
 
-<footer>Watch_CMD — Powered by <a href="https://www.themoviedb.org" target="_blank">The Movie Database</a> &amp; linked to <a href="https://www.imdb.com" target="_blank">IMDb</a>. Not for commercial use.</footer>
+<footer>Watch_CMD — Powered by <a href="https://www.themoviedb.org" target="_blank">The Movie Database</a>. Not for commercial use.</footer>
 
 <script>
 const IMG='https://image.tmdb.org/t/p/';
@@ -503,14 +500,8 @@ function renderHero(item){
   document.getElementById('hero-desc').textContent=(item.overview||'').slice(0,220)+((item.overview?.length||0)>220?'…':'');
   const gs=(item.genre_ids||[]).slice(0,2).map(id=>gmap()[id]||'').filter(Boolean).join(' · ');
   document.getElementById('hero-tag').textContent=gs||(mode==='tv'?'TV Series':'Featured');
-  const lnk=document.getElementById('hero-imdb');
-  lnk.href=`https://www.themoviedb.org/${mode}/${item.id}`;
-  fetchExt(item.id).then(id=>{if(id)lnk.href=`https://www.imdb.com/title/${id}`;});
 }
 
-async function fetchExt(id,type=mode){
-  try{const d=await tmdb(`/${type}/${id}/external_ids`);return d.imdb_id||null;}catch{return null;}
-}
 function cycleHero(){heroIdx=(heroIdx+1)%heroes.length;renderHero(heroes[heroIdx]);}
 
 const MROWS=[
@@ -571,7 +562,6 @@ function buildCard(item,i){
     <div class="card-overlay">
       <div class="card-name">${titleOf(item)}</div>
       <div class="card-year">${yearOf(item)}</div>
-      <div class="card-actions"><a class="card-btn card-btn-imdb" href="#" target="_blank">IMDb ↗</a></div>
     </div>`;
   // Inject watch history badge / progress bar
   const hist=getCardHistory(item.id,isTV?'tv':'movie');
@@ -585,10 +575,7 @@ function buildCard(item,i){
       card.appendChild(bar);
     }
   }
-  card.querySelector('.card-btn-imdb').addEventListener('click',async function(e){
-    if(this.getAttribute('href')==='#'){e.preventDefault();const id=await fetchExt(item.id,isTV?'tv':'movie');this.href=id?`https://www.imdb.com/title/${id}`:`https://www.themoviedb.org/${isTV?'tv':'movie'}/${item.id}`;window.open(this.href,'_blank');}
-  });
-  card.addEventListener('click',e=>{if(!e.target.classList.contains('card-btn-imdb'))openModal(item,isTV);});
+  card.addEventListener('click',()=>openModal(item,isTV));
   return card;
 }
 
@@ -612,7 +599,7 @@ async function openModal(item,isTV){
   const gm=isTV?TG:MG;
   document.getElementById('modal-genres').textContent=(item.genre_ids||[]).map(id=>gm[id]).filter(Boolean).join(', ')||'—';
   const turl=`https://www.themoviedb.org/${isTV?'tv':'movie'}/${item.id}`;
-  document.getElementById('modal-tmdb-link').href=turl;document.getElementById('modal-imdb-link').href=turl;
+  document.getElementById('modal-tmdb-link').href=turl;
   document.getElementById('seasons-section').style.display='none';
   document.getElementById('modal-seasons-meta').style.display='none';
   // Watched button state
@@ -622,7 +609,6 @@ async function openModal(item,isTV){
   wbtn.textContent=mhist?.watched?'✓ Watched':'+ Mark Watched';
   wbtn.classList.toggle('active',!!(mhist?.watched));
   document.getElementById('modal-bg').classList.add('open');document.body.style.overflow='hidden';
-  fetchExt(item.id,isTV?'tv':'movie').then(id=>{if(id)document.getElementById('modal-imdb-link').href=`https://www.imdb.com/title/${id}`;});
 
   // Fetch trailer from our backend — it checks embeddability server-side
   api(`/api/trailer?tmdb_id=${item.id}&type=${isTV?'tv':'movie'}`).then(data=>{
