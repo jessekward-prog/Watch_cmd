@@ -30,7 +30,8 @@
   /* PWA safe areas */
   header{padding-top:env(safe-area-inset-top,0)}
   .video-overlay{padding-bottom:env(safe-area-inset-bottom,0)}
-  header{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 3rem;height:64px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(8,10,15,.98),transparent);backdrop-filter:blur(8px)}
+  header{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 3rem;height:64px;display:flex;align-items:center;justify-content:space-between;gap:1.5rem;background:linear-gradient(to bottom,rgba(8,10,15,.98),transparent);backdrop-filter:blur(8px)}
+  .header-controls{display:flex;align-items:center;gap:1.5rem;flex:1}
   .logo{font-family:'Bebas Neue',sans-serif;font-size:1.9rem;letter-spacing:.08em;color:var(--accent);text-decoration:none}
   .logo .cmd{color:var(--accent2)}
   .mode-toggle{display:flex;background:var(--surface);border:1px solid rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
@@ -39,7 +40,7 @@
   nav{display:flex;gap:1.5rem;align-items:center}
   nav a{color:var(--muted);text-decoration:none;font-size:.82rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;transition:color .2s;cursor:pointer}
   nav a:hover,nav a.active{color:var(--text)}
-  .hero{height:520px;position:relative;margin-top:64px;overflow:hidden;display:flex;align-items:flex-end;padding:3rem}
+  .hero{height:520px;position:relative;margin-top:64px;overflow:hidden;display:flex;align-items:flex-end;padding:3rem} /* mobile overrides margin-top in MQ */
   .hero-bg{position:absolute;inset:0;background-size:cover;background-position:center 20%;filter:brightness(.45) saturate(.8);transform:scale(1.03);transition:background-image .5s}
   .hero-vignette{position:absolute;inset:0;background:linear-gradient(to right,rgba(8,10,15,.88) 0%,rgba(8,10,15,.3) 55%,transparent 100%),linear-gradient(to top,rgba(8,10,15,1) 0%,rgba(8,10,15,.4) 40%,transparent 100%)}
   .hero-content{position:relative;max-width:520px}
@@ -137,7 +138,21 @@
   .episodes-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem;letter-spacing:.06em}
   footer{text-align:center;padding:2rem;font-size:.72rem;color:var(--muted);letter-spacing:.06em;border-top:1px solid rgba(255,255,255,.04)}
   footer a{color:var(--accent);text-decoration:none}
-  @media(max-width:768px){header{padding:0 1.25rem}nav{gap:.75rem}.hero{padding:1.5rem}.hero-title{font-size:3rem}.search-bar{padding:1rem 1.25rem 0}.rows-wrapper{padding:1.5rem 1.25rem 3rem}:root{--card-w:140px;--card-h:210px}}
+  @media(max-width:768px){
+    header{padding:.5rem 1.25rem .4rem;height:auto;flex-wrap:wrap;gap:0;align-items:center}
+    .logo{flex:1}
+    .theme-btn{flex-shrink:0}
+    .header-controls{width:100%;flex:none;overflow-x:auto;scrollbar-width:none;gap:.75rem;padding:.45rem 0 .35rem;border-top:1px solid rgba(255,255,255,.05);margin-top:.3rem}
+    .header-controls::-webkit-scrollbar{display:none}
+    .mode-toggle{flex-shrink:0}
+    nav{flex-wrap:nowrap;gap:.9rem;flex-shrink:0}
+    nav a{white-space:nowrap}
+    .hero{padding:1.5rem;margin-top:92px}
+    .hero-title{font-size:3rem}
+    .search-bar{padding:1rem 1.25rem 0}
+    .rows-wrapper{padding:1.5rem 1.25rem 3rem}
+    :root{--card-w:140px;--card-h:210px}
+  }
   /* ─── STREAM UI ─── */
   .btn-stream{background:var(--accent2);color:#fff;border:none}
   .btn-stream:hover{background:#d4354d;transform:translateY(-1px)}
@@ -193,18 +208,20 @@
 <body>
 <header>
   <a class="logo" href="#">Watch<span class="cmd">_CMD</span></a>
-  <div class="mode-toggle">
-    <button class="mode-btn active" onclick="setMode('movie',this)">Movies</button>
-    <button class="mode-btn" onclick="setMode('tv',this)">TV Shows</button>
+  <div class="header-controls">
+    <div class="mode-toggle">
+      <button class="mode-btn active" onclick="setMode('movie',this)">Movies</button>
+      <button class="mode-btn" onclick="setMode('tv',this)">TV Shows</button>
+    </div>
+    <nav id="genre-nav">
+      <a class="active" onclick="filterGenre('all',this)">All</a>
+      <a onclick="filterGenre('28',this)">Action</a>
+      <a onclick="filterGenre('35',this)">Comedy</a>
+      <a onclick="filterGenre('18',this)">Drama</a>
+      <a onclick="filterGenre('27',this)">Horror</a>
+      <a onclick="filterGenre('878',this)">Sci-Fi</a>
+    </nav>
   </div>
-  <nav id="genre-nav">
-    <a class="active" onclick="filterGenre('all',this)">All</a>
-    <a onclick="filterGenre('28',this)">Action</a>
-    <a onclick="filterGenre('35',this)">Comedy</a>
-    <a onclick="filterGenre('18',this)">Drama</a>
-    <a onclick="filterGenre('27',this)">Horror</a>
-    <a onclick="filterGenre('878',this)">Sci-Fi</a>
-  </nav>
   <button class="theme-btn" onclick="toggleThemePanel()" title="Themes">◐</button>
 </header>
 
