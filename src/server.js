@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const fetch = require('node-fetch');
 const ytdl = require('ytdl-core');
+const { spawn } = require('child_process');
 const cors = require('cors');
 const path = require('path');
 
@@ -396,6 +397,33 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     if (useSSE) { res.write(`data: ${JSON.stringify({done:true,error:err.message})}\n\n`); res.end(); }
     else res.json({ streams: [], error: err.message });
   }
+});
+
+// Transcode audio to AAC on-the-fly via ffmpeg (fixes AC3/DTS in browser)
+app.get('/api/transcode', (req, res) => {
+  const { url } = req.query;
+  if (!url || !url.startsWith('https://')) return res.status(400).end();
+
+  res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Transfer-Encoding', 'chunked');
+
+  const ff = spawn('ffmpeg', [
+    '-i', url,
+    '-map', '0:v:0', '-map', '0:a:0',
+    '-c:v', 'copy',          // copy video unchanged
+    '-c:a', 'aac', '-b:a', '192k',  // re-encode audio to AAC
+    '-movflags', 'frag_keyframe+empty_moov',
+    '-f', 'mp4', 'pipe:1',
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+  ff.stdout.pipe(res);
+  ff.stderr.on('data', d => process.stdout.write('[ffmpeg] ' + d.toString().split('\n')[0] + '\n'));
+  ff.on('error', err => { console.error('[ffmpeg]', err.message); if (!res.headersSent) res.status(500).end(); });
+
+  const kill = () => ff.kill('SIGKILL');
+  req.on('close', kill);
+  res.on('close', kill);
 });
 
 app.get('/api/rd/status', (_, res) => res.json({ configured: !!RD_API_KEY }));
