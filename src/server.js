@@ -110,8 +110,10 @@ class RealDebridClient {
 // =============================================================================
 class TorrentProvider {
   constructor() {
-    this.ytsUrl = 'https://movies-api.accel.li/api/v2';
+    this.ytsUrl      = 'https://yts.mx/api/v2';            // official YTS API
     this.torrentioUrl = 'https://torrentio.strem.fun';
+    this.eztvUrl     = 'https://eztv.re/api';
+    this.zileanUrl   = 'https://zilean.elfhosted.com';
   }
 
   // YTS — proper public API, no blocking, returns torrent hashes directly
@@ -120,7 +122,7 @@ class TorrentProvider {
       const cleanImdb = imdbId.split(':')[0];
       const url = `${this.ytsUrl}/list_movies.json?query_term=${cleanImdb}&limit=20`;
       console.log(`[Torrent] YTS: ${url}`);
-      const r = await fetch(url, { timeout: 15000, headers: { 'Accept': 'application/json' } });
+      const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json' } });
       if (!r.ok) { console.log(`[Torrent] YTS ${r.status}`); return []; }
       const data = await r.json();
       if (!data.data || !data.data.movies || !data.data.movies.length) { console.log('[Torrent] YTS: no results'); return []; }
@@ -146,37 +148,57 @@ class TorrentProvider {
     } catch (err) { console.error(`[Torrent] YTS error: ${err.message}`); return []; }
   }
 
-  // EZTV — TV-only public API, works fine on cloud/datacenter IPs
+  // EZTV — TV public API; may be blocked on some cloud IPs, fails fast
   async searchEZTV(searchId) {
     try {
       const [rawId, season, episode] = searchId.split(':');
       const numericId = rawId.replace(/^tt/i, '');
-      const url = `https://eztv.re/api/get-torrents?imdb_id=${numericId}&limit=100`;
+      const url = `${this.eztvUrl}/get-torrents?imdb_id=${numericId}&limit=100`;
       console.log(`[Torrent] EZTV: ${url}`);
-      const r = await fetch(url, { timeout: 15000, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
       if (!r.ok) { console.log(`[Torrent] EZTV ${r.status}`); return []; }
       const data = await r.json();
       if (!data.torrents || !data.torrents.length) { console.log('[Torrent] EZTV: no results'); return []; }
-
       let torrents = data.torrents;
-      // Filter to the specific episode when requested
       if (season && episode) {
         const s = parseInt(season, 10), e = parseInt(episode, 10);
         const specific = torrents.filter(t => parseInt(t.season, 10) === s && parseInt(t.episode, 10) === e);
         if (specific.length) torrents = specific;
       }
-
       const results = torrents.map(t => {
         const hash = (t.hash || '').toLowerCase();
         if (!hash) return null;
-        const sizeBytes = parseInt(t.size_bytes, 10) || 0;
-        const sizeStr = sizeBytes > 1e9 ? `${(sizeBytes/1e9).toFixed(1)} GB` : sizeBytes > 1e6 ? `${(sizeBytes/1e6).toFixed(0)} MB` : '';
+        const sb = parseInt(t.size_bytes, 10) || 0;
+        const sizeStr = sb > 1e9 ? `${(sb/1e9).toFixed(1)} GB` : sb > 1e6 ? `${(sb/1e6).toFixed(0)} MB` : '';
         return { infoHash: hash, title: t.filename || 'Unknown', fileIdx: null, source: 'eztv', sizeStr, ...this.parse(t.filename || '') };
       }).filter(Boolean);
-
       console.log(`[Torrent] EZTV: ${results.length} torrents`);
       return results;
-    } catch (err) { console.error(`[Torrent] EZTV error: ${err.message}`); return []; }
+    } catch (err) { console.error(`[Torrent] EZTV: ${err.message}`); return []; }
+  }
+
+  // Zilean — indexes DMM hashes, designed to work on cloud/datacenter IPs
+  async searchZilean(searchId) {
+    try {
+      const [rawId, season, episode] = searchId.split(':');
+      // Zilean accepts the full imdb id with "tt" prefix
+      const query = season && episode ? `${rawId} S${String(season).padStart(2,'0')}E${String(episode).padStart(2,'0')}` : rawId;
+      const url = `${this.zileanUrl}/dmm/search?queryText=${encodeURIComponent(query)}`;
+      console.log(`[Torrent] Zilean: ${url}`);
+      const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json' } });
+      if (!r.ok) { console.log(`[Torrent] Zilean ${r.status}`); return []; }
+      const data = await r.json();
+      const items = Array.isArray(data) ? data : (data.data || data.results || []);
+      if (!items.length) { console.log('[Torrent] Zilean: no results'); return []; }
+      const results = items.map(t => {
+        const hash = (t.infoHash || t.hash || '').toLowerCase();
+        if (!hash) return null;
+        const title = t.filename || t.title || t.rawTitle || '';
+        return { infoHash: hash, title, fileIdx: null, source: 'zilean', sizeStr: '', ...this.parse(title) };
+      }).filter(Boolean);
+      console.log(`[Torrent] Zilean: ${results.length} torrents`);
+      return results;
+    } catch (err) { console.error(`[Torrent] Zilean: ${err.message}`); return []; }
   }
 
   // Torrentio — fallback (blocked on cloud IPs but works locally)
@@ -184,7 +206,7 @@ class TorrentProvider {
     try {
       const url = `${this.torrentioUrl}/stream/${type}/${imdbId}.json`;
       console.log(`[Torrent] Torrentio: ${url}`);
-      const r = await fetch(url, { timeout: 15000, headers: { 'User-Agent': 'Stremio', 'Accept': 'application/json' } });
+      const r = await fetch(url, { timeout: 8000, headers: { 'User-Agent': 'Stremio', 'Accept': 'application/json' } });
       if (r.status === 403) { console.log('[Torrent] Torrentio 403'); return []; }
       if (!r.ok) return [];
       const data = await r.json();
@@ -201,7 +223,10 @@ class TorrentProvider {
     console.log(`[Torrent] Searching ${type}: ${imdbId}`);
     const searches = [this.searchTorrentio(type, imdbId)];
     if (type === 'movie') searches.push(this.searchYTS(imdbId));
-    if (type === 'series') searches.push(this.searchEZTV(imdbId));
+    if (type === 'series') {
+      searches.push(this.searchEZTV(imdbId));
+      searches.push(this.searchZilean(imdbId));
+    }
 
     const results = await Promise.allSettled(searches);
     const all = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
