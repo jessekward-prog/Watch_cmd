@@ -69,6 +69,19 @@
   .search-wrap input{width:100%;background:var(--surface);border:1px solid rgba(255,255,255,.07);color:var(--text);font-family:'DM Sans',sans-serif;font-size:.88rem;padding:.6rem 1rem .6rem 2.5rem;border-radius:2px;outline:none;transition:border-color .2s}
   .search-wrap input:focus{border-color:var(--accent)}
   .search-wrap input::placeholder{color:var(--muted)}
+  .suggest-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid rgba(255,255,255,.1);border-radius:4px;overflow:hidden;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,.6);display:none}
+  .suggest-dropdown.open{display:block}
+  .suggest-item{display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;cursor:pointer;transition:background .12s;border-bottom:1px solid rgba(255,255,255,.04)}
+  .suggest-item:last-child{border-bottom:none}
+  .suggest-item:hover,.suggest-item.active{background:rgba(255,255,255,.07)}
+  .suggest-thumb{width:32px;height:46px;border-radius:2px;object-fit:cover;flex-shrink:0;background:var(--surface2)}
+  .suggest-thumb-placeholder{width:32px;height:46px;border-radius:2px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--muted)}
+  .suggest-info{flex:1;min-width:0}
+  .suggest-title{font-size:.82rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .suggest-meta{font-size:.7rem;color:var(--muted);margin-top:.1rem}
+  .suggest-type{font-size:.6rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:1px 5px;border-radius:2px;flex-shrink:0}
+  .suggest-type.tv{background:var(--accent2);color:#fff}
+  .suggest-type.movie{background:rgba(255,255,255,.1);color:var(--muted)}
   .filter-pills{display:flex;gap:.5rem;flex-wrap:wrap}
   .pill{padding:.35rem .9rem;font-size:.75rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;background:var(--surface);border:1px solid rgba(255,255,255,.07);color:var(--muted);cursor:pointer;border-radius:20px;transition:all .2s;white-space:nowrap}
   .pill:hover,.pill.active{background:var(--accent);border-color:var(--accent);color:#080a0f}
@@ -287,7 +300,8 @@
 <div class="search-bar">
   <div class="search-wrap">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <input type="text" id="search-input" placeholder="Search movies & TV shows…" oninput="handleSearch(this.value)">
+    <input type="text" id="search-input" placeholder="Search movies & TV shows…" oninput="handleSearch(this.value)" autocomplete="off">
+    <div class="suggest-dropdown" id="suggest-dropdown"></div>
   </div>
   <div class="filter-pills" id="sort-pills">
     <div class="pill active" onclick="filterSort('popular',this)">Popular</div>
@@ -747,7 +761,46 @@ function closeModalDirect(){closeTrailer();document.getElementById('modal-bg').c
 function filterSort(s,el){sort=s;document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');loadRows();}
 function filterGenre(id,el){genre=id;document.querySelectorAll('#genre-nav a').forEach(a=>a.classList.remove('active'));el.classList.add('active');loadRows();}
 
-function handleSearch(q){clearTimeout(searchTmt);if(!q.trim()){loadRows();return;}searchTmt=setTimeout(()=>doSearch(q.trim()),400);}
+let _suggestTmt, _suggestIdx=-1;
+
+function closeSuggest(){document.getElementById('suggest-dropdown').classList.remove('open');_suggestIdx=-1;}
+
+function handleSearch(q){
+  clearTimeout(searchTmt);clearTimeout(_suggestTmt);
+  if(!q.trim()){loadRows();closeSuggest();return;}
+  // Suggestions after 150ms (fast)
+  _suggestTmt=setTimeout(()=>fetchSuggestions(q.trim()),150);
+  // Full search after 500ms
+  searchTmt=setTimeout(()=>{closeSuggest();doSearch(q.trim());},500);
+}
+
+async function fetchSuggestions(q){
+  try{
+    const data=await tmdb(`/search/multi?query=${encodeURIComponent(q)}&page=1&include_adult=false`);
+    const results=(data.results||[]).filter(r=>(r.media_type==='movie'||r.media_type==='tv')&&(r.poster_path||r.name||r.title)).slice(0,7);
+    const dd=document.getElementById('suggest-dropdown');
+    if(!results.length){dd.classList.remove('open');return;}
+    _suggestIdx=-1;
+    dd.innerHTML=results.map((r,i)=>{
+      const isTV=r.media_type==='tv';
+      const title=r.title||r.name||'Unknown';
+      const year=(r.release_date||r.first_air_date||'').slice(0,4);
+      const thumb=r.poster_path?`<img class="suggest-thumb" src="${IMG}w92${r.poster_path}" loading="lazy">`:`<div class="suggest-thumb-placeholder">?</div>`;
+      return `<div class="suggest-item" data-idx="${i}" onclick="selectSuggestion(${r.id},${isTV})">
+        ${thumb}
+        <div class="suggest-info"><div class="suggest-title">${title}</div><div class="suggest-meta">${year||'—'}</div></div>
+        <span class="suggest-type ${isTV?'tv':'movie'}">${isTV?'TV':'Film'}</span>
+      </div>`;
+    }).join('');
+    dd.classList.add('open');
+  }catch{}
+}
+
+function selectSuggestion(tmdbId,isTV){
+  closeSuggest();
+  clearTimeout(searchTmt);clearTimeout(_suggestTmt);
+  openModalById(tmdbId,isTV);
+}
 async function doSearch(q){
   const w=document.getElementById('rows-wrapper');
   const sk=Array(10).fill('<div class="card skeleton"></div>').join('');
@@ -1095,6 +1148,20 @@ function navMove(dir){
   });
   if(best)navFocus(best);
 }
+
+// Close suggestions when clicking outside
+document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))closeSuggest();});
+
+// Arrow key navigation inside suggestion dropdown
+document.getElementById('search-input').addEventListener('keydown',e=>{
+  const dd=document.getElementById('suggest-dropdown');
+  const items=[...dd.querySelectorAll('.suggest-item')];
+  if(!dd.classList.contains('open')||!items.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();_suggestIdx=Math.min(_suggestIdx+1,items.length-1);items.forEach((el,i)=>el.classList.toggle('active',i===_suggestIdx));}
+  else if(e.key==='ArrowUp'){e.preventDefault();_suggestIdx=Math.max(_suggestIdx-1,0);items.forEach((el,i)=>el.classList.toggle('active',i===_suggestIdx));}
+  else if(e.key==='Enter'&&_suggestIdx>=0){e.preventDefault();items[_suggestIdx]?.click();}
+  else if(e.key==='Escape'){closeSuggest();}
+});
 
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
