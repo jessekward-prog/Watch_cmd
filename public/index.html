@@ -23,6 +23,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
 <style>
   :root { --bg:#080a0f;--surface:#0f1219;--surface2:#161b24;--accent:#e8b84b;--accent2:#c9415a;--text:#e8e6e0;--muted:#6b7280;--card-w:180px;--card-h:270px; }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -195,8 +196,10 @@
   .video-bar-close:hover{color:#fff;border-color:var(--accent2);background:var(--accent2)}
   .video-bar-copy{background:none;border:1px solid rgba(255,255,255,.12);color:var(--muted);font-size:.75rem;padding:.3rem .65rem;border-radius:2px;cursor:pointer;transition:all .15s}
   .video-bar-copy:hover{color:var(--text);border-color:rgba(255,255,255,.3)}
-  .video-container{flex:1;display:flex;align-items:center;justify-content:center;background:#000}
-  .video-container video{max-width:100%;max-height:100%;width:100%}
+  .video-container{flex:1;position:relative;background:#000;overflow:hidden}
+  .video-container .plyr{height:100%;width:100%;--plyr-color-main:var(--accent);--plyr-font-family:'DM Sans',sans-serif;--plyr-font-size-base:13px;--plyr-control-spacing:10px;--plyr-video-background:#000;--plyr-range-fill-background:var(--accent)}
+  .video-container .plyr--video{background:#000}
+  .video-container .plyr video{object-fit:contain}
   /* ─── THEME PANEL ─── */
   .theme-btn{background:none;border:1px solid rgba(255,255,255,.1);color:var(--muted);width:32px;height:32px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:.9rem;flex-shrink:0}
   .theme-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -327,7 +330,7 @@
     <button class="video-bar-close" onclick="closeVideo()">✕ Close</button>
   </div>
   <div class="video-container">
-    <video id="video-player" controls autoplay playsinline></video>
+    <video id="video-player" playsinline></video>
     <div id="video-codec-error" style="display:none;position:absolute;bottom:3rem;left:50%;transform:translateX(-50%);background:rgba(201,65,90,.92);color:#fff;font-size:.78rem;letter-spacing:.04em;padding:.5rem 1.2rem;border-radius:3px;text-align:center;pointer-events:none">
       No audio? This stream uses AC3/DTS audio — try a different quality option.
     </div>
@@ -392,12 +395,11 @@ async function saveHistory(info,progress,positionSec,durationSec){
 function startProgressTracking(){
   stopProgressTracking();
   if(!_currentPlayInfo)return;
-  const video=document.getElementById('video-player');
   _progressInterval=setInterval(()=>{
-    if(!video.duration||video.paused||video.ended)return;
-    const p=video.currentTime/video.duration;
-    saveHistory(_currentPlayInfo,p,Math.floor(video.currentTime),Math.floor(video.duration));
-    if(p>0.9){stopProgressTracking();}
+    if(!player||!player.duration||player.paused||player.ended)return;
+    const p=player.currentTime/player.duration;
+    saveHistory(_currentPlayInfo,p,Math.floor(player.currentTime),Math.floor(player.duration));
+    if(p>0.9)stopProgressTracking();
   },5000);
 }
 
@@ -803,7 +805,7 @@ async function fetchStreams(season=null,episode=null,epLabel=null){
 let _rawStreamUrl=null;
 function copyStreamLink(){
   const btn=document.getElementById('video-bar-copy');
-  const url=_rawStreamUrl||document.getElementById('video-player').src;
+  const url=_rawStreamUrl||(player&&player.media?player.media.src:'')||'';
   navigator.clipboard.writeText(url).then(()=>{
     btn.textContent='✓ Copied';btn.style.color='var(--accent)';
     setTimeout(()=>{btn.textContent='📋 Copy Link';btn.style.color='';},2000);
@@ -813,7 +815,6 @@ function copyStreamLink(){
 function playStream(url,title,rawUrl){
   _rawStreamUrl=rawUrl||url;
   const overlay=document.getElementById('video-overlay');
-  const video=document.getElementById('video-player');
   const vtitle=document.getElementById('video-title');
   const errBanner=document.getElementById('video-codec-error');
   errBanner.style.display='none';
@@ -830,52 +831,48 @@ function playStream(url,title,rawUrl){
       season:_pendingEpisode.season??-1,
       episode:_pendingEpisode.episode??-1,
     };
-    // Restore saved position
+    // Restore saved position once metadata is known
     const hkey=histKey(_currentPlayInfo.tmdbId,_currentPlayInfo.mediaType,_currentPlayInfo.season,_currentPlayInfo.episode);
     const saved=watchHistory.get(hkey);
-    video.onloadedmetadata=()=>{
-      if(saved&&saved.position_sec>10&&saved.progress<0.9){
-        video.currentTime=saved.position_sec;
-      }
-      video.onloadedmetadata=null;
-    };
+    if(saved&&saved.position_sec>10&&saved.progress<0.9){
+      player.once('loadedmetadata',()=>{ player.currentTime=saved.position_sec; });
+    }
   } else {
     _currentPlayInfo=null;
   }
 
-  video.src=url;
+  // Load source via Plyr
+  player.source={type:'video',sources:[{src:url,type:'video/mp4'}]};
   overlay.classList.add('open');
   document.body.style.overflow='hidden';
-  video.play().catch(()=>{});
+  player.play().catch(()=>{});
   startProgressTracking();
 
-  // Detect stalled audio after playback starts (codec incompatibility)
-  video.onplaying=()=>{
-    if(video.mozHasAudio===false||(typeof video.webkitAudioDecodedByteCount!=='undefined'&&video.webkitAudioDecodedByteCount===0)){
+  // Detect stalled audio (AC3/DTS codec incompatibility)
+  player.once('playing',()=>{
+    const v=player.media;
+    if(v.mozHasAudio===false||(typeof v.webkitAudioDecodedByteCount!=='undefined'&&v.webkitAudioDecodedByteCount===0)){
       setTimeout(()=>{
-        if(video.webkitAudioDecodedByteCount===0||video.mozHasAudio===false)
+        if(v.webkitAudioDecodedByteCount===0||v.mozHasAudio===false)
           errBanner.style.display='block';
       },3000);
     }
-  };
+  });
 }
 
 function closeVideo(){
   stopProgressTracking();
   _rawStreamUrl=null;
   _currentPlayInfo=null;
-  const overlay=document.getElementById('video-overlay');
-  const video=document.getElementById('video-player');
   document.getElementById('video-codec-error').style.display='none';
   document.getElementById('video-bar-copy').textContent='📋 Copy Link';
-  video.onplaying=null;
-  video.onloadedmetadata=null;
-  video.pause();video.src='';
-  overlay.classList.remove('open');
+  player.pause();
+  const v=player.media;
+  if(v){v.removeAttribute('src');v.load();}
+  document.getElementById('video-overlay').classList.remove('open');
   document.body.style.overflow='';
 }
 
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('video-overlay').classList.contains('open'))closeVideo();});
 
 // ─── THEMES ───────────────────────────────────────────────────────────────────
 const THEMES = [
@@ -952,6 +949,28 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
+</script>
+
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+<script>
+const player = new Plyr('#video-player', {
+  controls: ['play','rewind','fast-forward','progress','current-time','duration','mute','volume','settings','fullscreen'],
+  settings: ['speed','quality'],
+  speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
+  autoplay: false,
+  resetOnEnd: false,
+  keyboard: { focused: true, global: false },
+  fullscreen: { enabled: true, fallback: true, iosNative: true },
+  ratio: undefined,
+  hideControls: true,
+  invertTime: false,
+  toggleInvert: true,
+  storage: { enabled: true, key: 'watchcmd-plyr' },
+});
+// Close when Escape pressed
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.getElementById('video-overlay').classList.contains('open'))closeVideo();
+});
 </script>
 </body>
 </html>
