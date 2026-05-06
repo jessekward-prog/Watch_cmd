@@ -276,7 +276,7 @@ class TorrentProvider {
     else if (/av1/i.test(title)) i.codec='AV1'; else i.codec='';
     if (/atmos/i.test(title)) i.audio='Atmos'; else if (/dts-?hd/i.test(title)) i.audio='DTS-HD';
     else if (/truehd/i.test(title)) i.audio='TrueHD'; else if (/dts/i.test(title)) i.audio='DTS';
-    else if (/dd.?5\.1|ac3/i.test(title)) i.audio='DD5.1'; else if (/aac/i.test(title)) i.audio='AAC'; else i.audio='';
+    else if (/e-?ac3|eac3/i.test(title)) i.audio='DD5.1'; else if (/dd.?5\.1|ac3|dolby.?digital/i.test(title)) i.audio='DD5.1'; else if (/aac/i.test(title)) i.audio='AAC'; else i.audio='';
     const sm = title.match(/([\d.]+)\s*(GB|MB)/i); if (sm) i.sizeStr=`${sm[1]} ${sm[2].toUpperCase()}`;
     return i;
   }
@@ -441,14 +441,13 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
 
     // Drop codec/audio combos that don't play natively in browsers.
     // Disable by setting BROWSER_SAFE=false (e.g. for an Android TV APK build).
-    const BAD_AUDIO  = new Set(['DTS', 'DTS-HD', 'TrueHD', 'Atmos', 'DD5.1']);
-    const BAD_CODEC  = new Set(['HEVC']);
+    const BAD_AUDIO = new Set(['DTS', 'DTS-HD', 'TrueHD', 'Atmos', 'DD5.1']);
+    const BAD_CODEC = new Set(['HEVC']);
     const isSafe = t => !BROWSER_SAFE || (!BAD_AUDIO.has(t.audio) && !BAD_CODEC.has(t.codec));
     const safeCached = cached.filter(isSafe);
 
-    // Use safe cached; fall back to any cached; last resort uncached safe
+    // No fallback to unsafe streams — better to show "no streams" than a broken one
     const top = safeCached.length > 0 ? safeCached.slice(0, 10)
-              : cached.length > 0     ? cached.slice(0, 10)
               : top20.filter(isSafe).slice(0, 5);
     if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results anyway...'})}\n\n`);
     else if (useSSE) res.write(`data: ${JSON.stringify({status:`Found ${cached.length} cached streams, resolving...`})}\n\n`);
