@@ -168,7 +168,24 @@ class RealDebridClient {
 
             // Step 4: If status is "downloaded" it was cached and is ready
             if (info.status === 'downloaded' && info.links && info.links.length > 0) {
-                const link = info.links[0];
+                // For multi-file torrents, pick the right link by matching info.files
+                // RD links array is ordered the same as the selected files array
+                let linkIdx = 0;
+                if (info.files && info.links.length > 1) {
+                    const selectedFiles = info.files.filter(f => f.selected === 1);
+                    let targetFile = null;
+                    if (season !== null && episode !== null) {
+                        targetFile = this.findEpisodeFile(selectedFiles, season, episode);
+                    } else {
+                        targetFile = this.findLargestVideoFile(selectedFiles);
+                    }
+                    if (targetFile) {
+                        const idx = selectedFiles.indexOf(targetFile);
+                        if (idx >= 0 && idx < info.links.length) linkIdx = idx;
+                    }
+                }
+
+                const link = info.links[linkIdx];
                 const unrestricted = await this.unrestrictLink(link);
 
                 if (unrestricted && unrestricted.download) {
