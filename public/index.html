@@ -79,6 +79,10 @@
   .cards-track::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
   .card{flex:0 0 var(--card-w);height:var(--card-h);border-radius:4px;overflow:hidden;position:relative;cursor:pointer;scroll-snap-align:start;transition:transform .25s cubic-bezier(.34,1.56,.64,1);z-index:1;opacity:0;animation:fadeUp .4s forwards}
   .card:hover{transform:scale(1.08) translateY(-4px);z-index:10}
+  .nav-focus{outline:2px solid var(--accent)!important;outline-offset:3px;z-index:20!important}
+  .card.nav-focus{transform:scale(1.08) translateY(-4px)}
+  .ep-card.nav-focus{border-color:var(--accent)!important}
+  .season-tab.nav-focus,.btn.nav-focus,.ep-btn-stream.nav-focus,.ep-btn-choose.nav-focus,.stream-option.nav-focus{outline:2px solid var(--accent);outline-offset:2px}
   .card img{width:100%;height:100%;object-fit:cover;display:block;background:var(--surface2)}
   .card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(8,10,15,.95) 0%,transparent 60%);opacity:0;transition:opacity .25s;display:flex;flex-direction:column;justify-content:flex-end;padding:.75rem}
   .card:hover .card-overlay{opacity:1}
@@ -724,8 +728,7 @@ function closeTrailer(){
 }
 
 function closeModal(e){if(e.target===document.getElementById('modal-bg'))closeModalDirect();}
-function closeModalDirect(){closeTrailer();document.getElementById('modal-bg').classList.remove('open');document.body.style.overflow='';}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModalDirect();});
+function closeModalDirect(){closeTrailer();document.getElementById('modal-bg').classList.remove('open');document.body.style.overflow='';navClearFocus();}
 
 function filterSort(s,el){sort=s;document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');loadRows();}
 function filterGenre(id,el){genre=id;document.querySelectorAll('#genre-nav a').forEach(a=>a.classList.remove('active'));el.classList.add('active');loadRows();}
@@ -1004,9 +1007,127 @@ const player = new Plyr('#video-player', {
   toggleInvert: true,
   storage: { enabled: true, key: 'watchcmd-plyr' },
 });
-// Close when Escape pressed
+// ─── HISTORY / BACK BUTTON ────────────────────────────────────────────────────
+// Push a history entry whenever we open a layer so the browser/TV back button works.
+function pushLayer(name){history.pushState({layer:name},'');}
+
+const _origOpenModal=openModal;
+async function openModal(item,isTV){
+  if(!document.getElementById('modal-bg').classList.contains('open'))pushLayer('modal');
+  await _origOpenModal(item,isTV);
+  // Auto-focus the first modal action button for TV navigation
+  setTimeout(()=>{
+    const first=document.querySelector('#modal-bg .btn:not(.hidden):not(.loading)');
+    if(first)navFocus(first);
+  },350);
+}
+
+const _origPlayStream=playStream;
+function playStream(url,title,rawUrl){
+  pushLayer('video');
+  _origPlayStream(url,title,rawUrl);
+  navClearFocus();
+}
+
+const _origCloseVideo=closeVideo;
+function closeVideo(){
+  _origCloseVideo();
+  // If modal is still open, push its layer back so back still works from modal
+  if(document.getElementById('modal-bg').classList.contains('open'))pushLayer('modal');
+}
+
+window.addEventListener('popstate',e=>{
+  const layer=e.state?.layer;
+  if(document.getElementById('video-overlay').classList.contains('open')){closeVideo();return;}
+  if(document.getElementById('modal-bg').classList.contains('open')){closeModalDirect();return;}
+});
+
+// ─── KEYBOARD / TV REMOTE NAVIGATION ─────────────────────────────────────────
+let _navEl=null;
+
+function navFocus(el){
+  if(!el)return;
+  if(_navEl)_navEl.classList.remove('nav-focus');
+  _navEl=el;
+  el.classList.add('nav-focus');
+  el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
+}
+
+function navClearFocus(){
+  if(_navEl){_navEl.classList.remove('nav-focus');_navEl=null;}
+}
+
+function navCandidates(){
+  const videoOpen=document.getElementById('video-overlay').classList.contains('open');
+  const modalOpen=document.getElementById('modal-bg').classList.contains('open');
+  if(videoOpen)return[];
+  if(modalOpen){
+    return[
+      ...document.querySelectorAll('#modal-bg .modal-actions .btn:not(.hidden)'),
+      ...document.querySelectorAll('.season-tab'),
+      ...document.querySelectorAll('.ep-card'),
+      ...document.querySelectorAll('.ep-card.expanded .ep-btn-stream,.ep-card.expanded .ep-btn-choose'),
+      ...document.querySelectorAll('.stream-option'),
+    ];
+  }
+  return[...document.querySelectorAll('.card')];
+}
+
+function navMove(dir){
+  const els=navCandidates();
+  if(!els.length)return;
+  if(!_navEl||!els.includes(_navEl)){navFocus(els[0]);return;}
+  const r=_navEl.getBoundingClientRect();
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  let best=null,bestScore=Infinity;
+  els.forEach(el=>{
+    if(el===_navEl)return;
+    const er=el.getBoundingClientRect();
+    const ex=er.left+er.width/2,ey=er.top+er.height/2;
+    const dx=ex-cx,dy=ey-cy;
+    const inDir=(dir==='right'&&dx>8)||(dir==='left'&&dx<-8)||(dir==='down'&&dy>8)||(dir==='up'&&dy<-8);
+    if(!inDir)return;
+    // Weight: heavily penalise drift on the off-axis
+    const score=(dir==='left'||dir==='right')?Math.abs(dx)+Math.abs(dy)*4:Math.abs(dy)+Math.abs(dx)*4;
+    if(score<bestScore){bestScore=score;best=el;}
+  });
+  if(best)navFocus(best);
+}
+
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'&&document.getElementById('video-overlay').classList.contains('open'))closeVideo();
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+
+  const videoOpen=document.getElementById('video-overlay').classList.contains('open');
+  const modalOpen=document.getElementById('modal-bg').classList.contains('open');
+  const BACK_KEYS=new Set(['Escape','GoBack','XF86Back','BrowserBack']);
+
+  if(BACK_KEYS.has(e.key)){
+    if(videoOpen){closeVideo();e.preventDefault();return;}
+    if(modalOpen){closeModalDirect();e.preventDefault();return;}
+    return;
+  }
+
+  if(videoOpen)return; // let Plyr handle space/seek/etc
+
+  const dir={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'}[e.key];
+  if(dir){e.preventDefault();navMove(dir);return;}
+
+  if(e.key==='Enter'||e.key===' '){
+    if(_navEl){
+      // If focused on an ep-card header, toggle expand
+      if(_navEl.classList.contains('ep-card')){
+        _navEl.querySelector('.ep-card-header')?.click();
+        // After expand, move focus to Stream Now button if available
+        setTimeout(()=>{
+          const btn=_navEl.querySelector('.ep-btn-stream');
+          if(btn&&_navEl.classList.contains('expanded'))navFocus(btn);
+        },50);
+      }else{
+        _navEl.click();
+      }
+      e.preventDefault();
+    }
+  }
 });
 </script>
 </body>
