@@ -249,10 +249,7 @@ class TorrentProvider {
 
   async search(type, imdbId, title = '', year = '') {
     console.log(`[Torrent] Searching ${type}: ${imdbId} "${title}" ${year}`);
-    const searches = [
-      this.searchTorrentio(type, imdbId),
-      this.searchApibay(imdbId, type),
-    ];
+    const searches = [];
     if (type === 'movie') searches.push(this.searchYTS(imdbId, title, year));
     if (type === 'series') searches.push(this.searchEZTV(imdbId));
 
