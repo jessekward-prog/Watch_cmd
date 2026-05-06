@@ -379,10 +379,13 @@ app.get('/api/proxy/trailer/:videoId', async (req, res) => {
 // =============================================================================
 const QUALITY_RANK = { '4K': 4, '1080p': 3, '720p': 2, '480p': 1, 'Unknown': 0 };
 const SOURCE_RANK  = { 'BluRay': 4, 'WEB-DL': 3, 'WEBRip': 2, 'HDTV': 1, '': 0 };
-// Browser codec compatibility: AVC (H.264) plays natively everywhere; HEVC needs HW decoder
-const CODEC_RANK   = { 'AVC': 3, '': 2, 'AV1': 2, 'HEVC': 1 };
-// Browser audio compatibility: AAC/no-tag are safe; AC3/DTS require plugins
-const AUDIO_RANK   = { 'AAC': 3, '': 2, 'DD5.1': 1, 'DTS': 0, 'DTS-HD': 0, 'TrueHD': 0, 'Atmos': 0 };
+// AVC is universally safe; AV1 works in Chrome/Firefox; unknown codec is a gamble; HEVC filtered out
+const CODEC_RANK   = { 'AVC': 3, 'AV1': 2, '': 1, 'HEVC': 0 };
+// AAC (any channel count) is safe; unknown might be fine; everything else filtered out
+const AUDIO_RANK   = { 'AAC': 3, '': 2, 'DD5.1': 0, 'DTS': 0, 'DTS-HD': 0, 'TrueHD': 0, 'Atmos': 0 };
+
+// Combined browser-safety score: AVC+AAC = 6, AVC+unknown = 5, AV1+AAC = 5, unknown+AAC = 4, etc.
+const safetyScore  = t => (CODEC_RANK[t.codec]||1) + (AUDIO_RANK[t.audio]||2);
 
 app.get('/api/stream/:type/:tmdbId', async (req, res) => {
   const { type, tmdbId } = req.params;
@@ -421,10 +424,11 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     }
 
     torrents.sort((a, b) => {
-      const qd = (QUALITY_RANK[b.quality]||0)    - (QUALITY_RANK[a.quality]||0);    if (qd) return qd;
-      const sd = (SOURCE_RANK[b.sourceType]||0)  - (SOURCE_RANK[a.sourceType]||0);  if (sd) return sd;
-      const cd = (CODEC_RANK[b.codec]||2)        - (CODEC_RANK[a.codec]||2);        if (cd) return cd;
-      return     (AUDIO_RANK[b.audio]||2)        - (AUDIO_RANK[a.audio]||2);
+      // Browser safety first — a broken stream at any quality is useless
+      const ss = safetyScore(b) - safetyScore(a); if (ss) return ss;
+      // Then quality, source type
+      const qd = (QUALITY_RANK[b.quality]||0) - (QUALITY_RANK[a.quality]||0); if (qd) return qd;
+      return (SOURCE_RANK[b.sourceType]||0) - (SOURCE_RANK[a.sourceType]||0);
     });
 
     const rd = new RealDebridClient(RD_API_KEY);
@@ -460,6 +464,13 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
           if (result.filesize && result.filesize > MAX_BYTES) {
             console.log(`[Stream] Skipped ${result.filename} — ${(result.filesize/1e9).toFixed(1)} GB > 8 GB`);
             return null;
+          }
+          // Double-check filename for codec/audio indicators the torrent metadata missed
+          if (BROWSER_SAFE && result.filename) {
+            const fn = result.filename;
+            if (/x265|h\.?265|hevc/i.test(fn)) { console.log(`[Stream] Skipped ${fn} — HEVC detected in filename`); return null; }
+            if (/\b(dts|truehd|atmos)\b/i.test(fn)) { console.log(`[Stream] Skipped ${fn} — bad audio detected in filename`); return null; }
+            if (/e-?ac3|eac3/i.test(fn) && !/aac/i.test(fn)) { console.log(`[Stream] Skipped ${fn} — EAC3 detected in filename`); return null; }
           }
           return {
             url: result.url, quality: t.quality || 'Unknown',
