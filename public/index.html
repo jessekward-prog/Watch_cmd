@@ -12,8 +12,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Watch_CMD">
-<link rel="apple-touch-icon" href="/icons/icon.svg">
-<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 
 <!-- SEO / OG -->
 <meta name="description" content="Netflix-style movie & TV browser with Real-Debrid streaming">
@@ -207,6 +208,10 @@
   .stream-error{text-align:center;padding:1.5rem;color:var(--accent2);font-size:.82rem}
   .video-overlay{position:fixed;inset:0;z-index:9999;background:#000;display:none;flex-direction:column}
   .video-overlay.open{display:flex}
+  .video-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;z-index:10;pointer-events:none;opacity:0;transition:opacity .3s}
+  .video-loading.active{opacity:1}
+  .video-loading img{width:96px;height:96px;animation:loadPulse 1.4s ease-in-out infinite}
+  @keyframes loadPulse{0%,100%{opacity:.35;transform:scale(.92)}50%{opacity:1;transform:scale(1)}}
   .video-bar{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1rem;background:rgba(0,0,0,.9);z-index:1}
   .video-bar-title{font-size:.8rem;color:var(--muted);letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;margin-right:1rem}
   .video-bar-close{background:none;border:1px solid rgba(255,255,255,.15);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;padding:.3rem .8rem;border-radius:2px;cursor:pointer;transition:all .15s}
@@ -350,6 +355,9 @@
   </div>
   <div class="video-container">
     <video id="video-player" playsinline></video>
+    <div class="video-loading active" id="video-loading">
+      <img src="/icons/loading.png" alt="">
+    </div>
     <div id="video-codec-error" style="display:none;position:absolute;bottom:3rem;left:50%;transform:translateX(-50%);background:rgba(201,65,90,.92);color:#fff;font-size:.78rem;letter-spacing:.04em;padding:.5rem 1.2rem;border-radius:3px;text-align:center;pointer-events:none">
       No audio? This stream uses AC3/DTS audio — try a different quality option.
     </div>
@@ -890,6 +898,7 @@ function playStream(url,title,rawUrl){
 
   // Load source via Plyr
   player.source={type:'video',sources:[{src:url,type:'video/mp4'}]};
+  showVideoLoading();
   overlay.classList.add('open');
   document.body.style.overflow='hidden';
   player.play().catch(()=>{});
@@ -918,6 +927,7 @@ function closeVideo(){
   if(v){v.removeAttribute('src');v.load();}
   document.getElementById('video-overlay').classList.remove('open');
   document.body.style.overflow='';
+  showVideoLoading();
   if(document.getElementById('modal-bg').classList.contains('open'))pushLayer('modal');
 }
 
@@ -1015,6 +1025,16 @@ const player = new Plyr('#video-player', {
   toggleInvert: true,
   storage: { enabled: true, key: 'watchcmd-plyr' },
 });
+
+// ─── PLAYER LOADING STATE ─────────────────────────────────────────────────────
+const _vLoading = document.getElementById('video-loading');
+function showVideoLoading(){ _vLoading.classList.add('active'); }
+function hideVideoLoading(){ _vLoading.classList.remove('active'); }
+player.on('waiting', showVideoLoading);
+player.on('seeking', showVideoLoading);
+player.on('playing', hideVideoLoading);
+player.on('canplay', hideVideoLoading);
+
 // ─── HISTORY / BACK BUTTON ────────────────────────────────────────────────────
 function pushLayer(name){history.pushState({layer:name},'');}
 
