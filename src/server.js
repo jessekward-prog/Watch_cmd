@@ -238,6 +238,7 @@ class TorrentProvider {
       const s = parseInt(season, 10), e = parseInt(episode, 10);
       const specific = torrents.filter(t => parseInt(t.season, 10) === s && parseInt(t.episode, 10) === e);
       if (specific.length) torrents = specific;
+      else torrents = []; // no exact match — don't return wrong episodes
     }
     const results = torrents.map(t => {
       const hash = (t.hash || '').toLowerCase();
@@ -429,10 +430,17 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
       return res.json({ streams: [], error: 'No torrents found' });
     }
 
+    // For TV episode searches, drop torrents that are clearly for the wrong episode
+    if (type === 'tv' && season && episode) {
+      const S = String(+season).padStart(2,'0'), E = String(+episode).padStart(2,'0');
+      const epPat   = new RegExp(`S${S}E${E}|${+season}x${E}`, 'i');
+      const packPat = /complete|season[\s._-]?\d|s\d{1,2}[\s._](bluray|web|hdtv|dvdrip)/i;
+      const filtered = torrents.filter(t => epPat.test(t.title) || packPat.test(t.title));
+      if (filtered.length) { torrents = filtered; console.log(`[Stream] Episode filter: ${torrents.length} torrents`); }
+    }
+
     torrents.sort((a, b) => {
-      // Browser safety first — a broken stream at any quality is useless
       const ss = safetyScore(b) - safetyScore(a); if (ss) return ss;
-      // Then quality, source type
       const qd = (QUALITY_RANK[b.quality]||0) - (QUALITY_RANK[a.quality]||0); if (qd) return qd;
       return (SOURCE_RANK[b.sourceType]||0) - (SOURCE_RANK[a.sourceType]||0);
     });
