@@ -156,12 +156,15 @@ class TorrentProvider {
           if (!movie.torrents) continue;
           for (const t of movie.torrents) {
             if (!t.hash) continue;
+            const ytsTitleStr = `${movie.title_long} [${t.quality}] [${t.type}]`;
+            const ytsCodec = t.video_codec === 'x265' ? 'HEVC' : t.video_codec === 'AV1' ? 'AV1' : t.video_codec === 'x264' ? 'AVC' : '';
             out.push({
               infoHash: t.hash.toLowerCase(), fileIdx: null, source: 'yts',
-              title: `${movie.title_long} [${t.quality}] [${t.type}]`,
+              title: ytsTitleStr,
               quality: t.quality === '2160p' ? '4K' : t.quality || 'Unknown',
               sourceType: t.type === 'bluray' ? 'BluRay' : t.type === 'web' ? 'WEB-DL' : '',
-              hdr: '', codec: '', audio: '', sizeStr: t.size || ''
+              hdr: '', audio: 'AAC', sizeStr: t.size || '',
+              codec: ytsCodec || (this.parse(ytsTitleStr).codec || '')
             });
           }
         }
