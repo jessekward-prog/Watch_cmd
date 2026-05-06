@@ -434,13 +434,17 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     });
     console.log(`[Stream] RD cache: ${cached.length}/${top20.length} torrents available`);
 
-    // Drop AC3/DTS/TrueHD — none of these decode natively in any browser
-    const BAD_AUDIO = new Set(['DTS', 'DTS-HD', 'TrueHD', 'Atmos', 'DD5.1']);
-    const safeCached = cached.filter(t => !BAD_AUDIO.has(t.audio));
+    // Drop codec/audio combos that don't play natively in browsers:
+    // HEVC = sound but no picture in Chrome; AC3/DTS/TrueHD = picture but no sound
+    const BAD_AUDIO  = new Set(['DTS', 'DTS-HD', 'TrueHD', 'Atmos', 'DD5.1']);
+    const BAD_CODEC  = new Set(['HEVC']);
+    const browserSafe = t => !BAD_AUDIO.has(t.audio) && !BAD_CODEC.has(t.codec);
+    const safeCached = cached.filter(browserSafe);
 
-    // Use cached torrents; if none, fall back to top 5 uncached
+    // Use safe cached; fall back to any cached (bad codec beats no stream); last resort uncached safe
     const top = safeCached.length > 0 ? safeCached.slice(0, 10)
-              : top20.filter(t => !BAD_AUDIO.has(t.audio)).slice(0, 5);
+              : cached.length > 0     ? cached.slice(0, 10)
+              : top20.filter(browserSafe).slice(0, 5);
     if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results anyway...'})}\n\n`);
     else if (useSSE) res.write(`data: ${JSON.stringify({status:`Found ${cached.length} cached streams, resolving...`})}\n\n`);
     console.log(`[Stream] Resolving ${top.length} torrents...`);
