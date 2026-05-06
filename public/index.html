@@ -122,18 +122,33 @@
   .season-tab{padding:.3rem .8rem;font-size:.72rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;background:var(--surface2);border:1px solid rgba(255,255,255,.06);color:var(--muted);border-radius:2px;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
   .season-tab:hover{color:var(--text);border-color:rgba(255,255,255,.15)}
   .season-tab.active{background:var(--accent);border-color:var(--accent);color:#080a0f}
-  .episodes-list{display:flex;flex-direction:column;gap:.5rem}
-  .ep-row{display:flex;gap:1rem;align-items:flex-start;padding:.75rem;border-radius:3px;background:var(--surface2);border:1px solid rgba(255,255,255,.04);transition:border-color .15s}
-  .ep-row:hover{border-color:rgba(232,184,75,.25)}
-  .ep-thumb{flex:0 0 100px;height:58px;border-radius:2px;overflow:hidden;background:var(--bg)}
+  .episodes-list{display:flex;flex-direction:column;gap:.4rem}
+  .ep-card{border-radius:4px;background:var(--surface2);border:1px solid rgba(255,255,255,.04);overflow:hidden;transition:border-color .15s;cursor:pointer}
+  .ep-card:hover{border-color:rgba(232,184,75,.2)}
+  .ep-card.expanded{border-color:rgba(232,184,75,.35)}
+  .ep-card-header{display:flex;gap:.9rem;align-items:center;padding:.65rem .75rem}
+  .ep-thumb{flex:0 0 96px;height:56px;border-radius:2px;overflow:hidden;background:var(--bg);position:relative}
   .ep-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .ep-thumb-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:var(--muted)}
+  .ep-progress{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,.15)}
+  .ep-progress-fill{height:100%;background:var(--accent2);border-radius:0 2px 0 0}
+  .ep-watched-badge{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#22c55e}
   .ep-info{flex:1;min-width:0}
-  .ep-header{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;margin-bottom:.3rem}
-  .ep-num{font-size:.68rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
-  .ep-runtime{font-size:.68rem;color:var(--muted);white-space:nowrap}
-  .ep-title{font-size:.82rem;font-weight:500;margin-bottom:.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ep-overview{font-size:.75rem;color:rgba(232,230,224,.55);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ep-header{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;margin-bottom:.25rem}
+  .ep-num{font-size:.65rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+  .ep-runtime{font-size:.65rem;color:var(--muted);white-space:nowrap}
+  .ep-title{font-size:.82rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ep-chevron{flex-shrink:0;font-size:.65rem;color:var(--muted);transition:transform .2s;margin-left:.25rem}
+  .ep-card.expanded .ep-chevron{transform:rotate(180deg)}
+  .ep-card-body{display:none;padding:.65rem .75rem .75rem;border-top:1px solid rgba(255,255,255,.05)}
+  .ep-card.expanded .ep-card-body{display:block}
+  .ep-body-actions{display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap}
+  .ep-btn-stream{padding:.4rem 1rem;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--accent2);color:#fff;border:none;border-radius:3px;cursor:pointer;transition:background .15s}
+  .ep-btn-stream:hover{background:#d4354d}
+  .ep-btn-choose{padding:.4rem .9rem;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--surface);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:3px;cursor:pointer;transition:all .15s}
+  .ep-btn-choose:hover{border-color:rgba(255,255,255,.3);color:#fff}
+  .ep-btn-stream.loading,.ep-btn-choose.loading{opacity:.55;pointer-events:none}
+  .ep-body-blurb{font-size:.78rem;color:rgba(232,230,224,.6);line-height:1.6}
   .episodes-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem;letter-spacing:.06em}
   /* ─── WATCH HISTORY ─── */
   .watch-badge{position:absolute;bottom:.45rem;right:.45rem;background:#22c55e;color:#fff;font-size:.65rem;font-weight:700;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:3;pointer-events:none}
@@ -145,9 +160,7 @@
   .btn-watched{background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.3)}
   .btn-watched:hover{background:rgba(34,197,94,.22)}
   .btn-watched.active{background:#22c55e;color:#fff;border-color:#22c55e}
-  .ep-stream-btn{flex-shrink:0;padding:.28rem .65rem;font-size:.62rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--accent2);color:#fff;border:none;border-radius:2px;cursor:pointer;transition:background .15s;white-space:nowrap}
-  .ep-stream-btn:hover{background:#d4354d}
-  .ep-stream-btn.hidden{display:none}
+
   footer{text-align:center;padding:2rem;font-size:.72rem;color:var(--muted);letter-spacing:.06em;border-top:1px solid rgba(255,255,255,.04)}
   footer a{color:var(--accent);text-decoration:none}
   @media(max-width:768px){
@@ -590,7 +603,7 @@ async function openModal(item,isTV){
   document.getElementById('stream-picker').classList.remove('open');
   document.getElementById('stream-list').innerHTML='';
   const sbtn=document.getElementById('stream-btn');
-  if(rdEnabled){sbtn.classList.remove('hidden');sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';}
+  if(rdEnabled&&!isTV){sbtn.classList.remove('hidden');sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';}
   else{sbtn.classList.add('hidden');}
   document.getElementById('modal-backdrop').src=item.backdrop_path?`${IMG}w780${item.backdrop_path}`:`${IMG}w342${item.poster_path}`;
   document.getElementById('modal-title').textContent=titleOf(item);
@@ -650,23 +663,46 @@ async function loadEpisodes(tvId,seasonNum){
   if(!eps.length){list.innerHTML='<div class="episodes-loading">No episodes found.</div>';return;}
   list.innerHTML='';
   eps.forEach(ep=>{
-    const row=document.createElement('div');row.className='ep-row';
+    const card=document.createElement('div');card.className='ep-card';
     const thumb=ep.still_path?`${IMG}w300${ep.still_path}`:null;
     const air=ep.air_date?new Date(ep.air_date).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';
-    row.innerHTML=`<div class="ep-thumb">${thumb?`<img src="${thumb}" loading="lazy">`:'<div class="ep-thumb-placeholder">▶</div>'}</div>
-      <div class="ep-info">
-        <div class="ep-header"><span class="ep-num">Ep ${ep.episode_number}${air?' · '+air:''}</span><span class="ep-runtime">${ep.runtime?ep.runtime+'m':''}</span></div>
-        <div class="ep-title">${ep.name||'Episode '+ep.episode_number}</div>
-        <div class="ep-overview">${ep.overview||'No description available.'}</div>
+    const epHist=watchHistory.get(histKey(tvId,'tv',seasonNum,ep.episode_number));
+    const pct=epHist?Math.round((epHist.progress||0)*100):0;
+    const thumbOverlay=epHist&&epHist.watched
+      ?`<div class="ep-watched-badge">✓</div>`
+      :(pct>5?`<div class="ep-progress"><div class="ep-progress-fill" style="width:${pct}%"></div></div>`:'');
+    const epLabel=`S${String(seasonNum).padStart(2,'0')}E${String(ep.episode_number).padStart(2,'0')} — ${ep.name||'Episode '+ep.episode_number}`;
+    card.innerHTML=`
+      <div class="ep-card-header">
+        <div class="ep-thumb">${thumb?`<img src="${thumb}" loading="lazy">`:'<div class="ep-thumb-placeholder">▶</div>'}${thumbOverlay}</div>
+        <div class="ep-info">
+          <div class="ep-header"><span class="ep-num">Ep ${ep.episode_number}${air?' · '+air:''}</span><span class="ep-runtime">${ep.runtime?ep.runtime+'m':''}</span></div>
+          <div class="ep-title">${ep.name||'Episode '+ep.episode_number}</div>
+        </div>
+        <span class="ep-chevron">▼</span>
       </div>
-      <button class="ep-stream-btn${rdEnabled?'':' hidden'}" title="Stream S${seasonNum}E${ep.episode_number}">⚡</button>`;
+      <div class="ep-card-body">
+        <div class="ep-body-actions">
+          ${rdEnabled?`<button class="ep-btn-stream">⚡ Stream Now</button><button class="ep-btn-choose">≡ Choose Stream</button>`:''}
+        </div>
+        <div class="ep-body-blurb">${ep.overview||'No description available.'}</div>
+      </div>`;
+    card.querySelector('.ep-card-header').onclick=()=>{
+      const wasOpen=card.classList.contains('expanded');
+      list.querySelectorAll('.ep-card.expanded').forEach(c=>c.classList.remove('expanded'));
+      if(!wasOpen)card.classList.add('expanded');
+    };
     if(rdEnabled){
-      row.querySelector('.ep-stream-btn').onclick=(e)=>{
+      card.querySelector('.ep-btn-stream').onclick=e=>{
         e.stopPropagation();
-        fetchStreams(seasonNum,ep.episode_number,`S${String(seasonNum).padStart(2,'0')}E${String(ep.episode_number).padStart(2,'0')} — ${ep.name||'Episode '+ep.episode_number}`);
+        fetchStreams(seasonNum,ep.episode_number,epLabel,true);
+      };
+      card.querySelector('.ep-btn-choose').onclick=e=>{
+        e.stopPropagation();
+        fetchStreams(seasonNum,ep.episode_number,epLabel,false);
       };
     }
-    list.appendChild(row);
+    list.appendChild(card);
   });
 }
 
@@ -716,11 +752,11 @@ async function checkRD(){
   try{const r=await api('/api/rd/status');rdEnabled=r.configured;}catch{rdEnabled=false;}
 }
 
-async function fetchStreams(season=null,episode=null,epLabel=null){
+async function fetchStreams(season=null,episode=null,epLabel=null,autoPlay=false){
   if(!currentModalItem)return;
   _pendingEpisode={season,episode};
   const sbtn=document.getElementById('stream-btn');
-  sbtn.className='btn btn-stream loading';sbtn.textContent='⚡ Searching…';
+  if(!sbtn.classList.contains('hidden')){sbtn.className='btn btn-stream loading';sbtn.textContent='⚡ Searching…';}
   const picker=document.getElementById('stream-picker');
   const list=document.getElementById('stream-list');
   picker.classList.add('open');
@@ -754,6 +790,7 @@ async function fetchStreams(season=null,episode=null,epLabel=null){
         if(count===0) list.innerHTML=''; // clear loading message
         count++;
         const s=data.stream;
+        if(autoPlay&&count===1){evtSource.close();playStream(s.url,s.filename||titleOf(currentModalItem),s.url);return;}
         const label=s.filename||titleOf(currentModalItem);
         const opt=document.createElement('div');opt.className='stream-option';
         opt.onclick=()=>playStream(s.url,label,s.url);
@@ -778,14 +815,14 @@ async function fetchStreams(season=null,episode=null,epLabel=null){
           }).catch(()=>prompt('Copy this link:',s.url));
         };
         list.appendChild(opt);
-        sbtn.className='btn btn-stream';sbtn.textContent=`⚡ ${count} Stream${count>1?'s':''}`;
+        if(!sbtn.classList.contains('hidden')){sbtn.className='btn btn-stream';sbtn.textContent=`⚡ ${count} Stream${count>1?'s':''}`;}
       }
 
       if(data.done){
         evtSource.close();
         if(count===0){
           list.innerHTML=`<div class="stream-error">${data.error||'No cached streams found on Real-Debrid'}</div>`;
-          sbtn.className='btn btn-stream';sbtn.textContent='⚡ No Streams';
+          if(!sbtn.classList.contains('hidden')){sbtn.className='btn btn-stream';sbtn.textContent='⚡ No Streams';}
         }
       }
     };
@@ -793,12 +830,12 @@ async function fetchStreams(season=null,episode=null,epLabel=null){
       evtSource.close();
       if(count===0){
         list.innerHTML='<div class="stream-error">Connection lost — try again</div>';
-        sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';
+        if(!sbtn.classList.contains('hidden')){sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';}
       }
     };
   }catch(err){
     list.innerHTML=`<div class="stream-error">Error: ${err.message}</div>`;
-    sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';
+    if(!sbtn.classList.contains('hidden')){sbtn.className='btn btn-stream';sbtn.textContent='⚡ Stream';}
   }
 }
 
