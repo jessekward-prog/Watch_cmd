@@ -479,28 +479,42 @@ app.get('/api/transcode', (req, res) => {
   const { url } = req.query;
   if (!url || !url.startsWith('https://')) return res.status(400).end();
 
+  // Do NOT set Transfer-Encoding — HTTP/2 and iOS Safari reject it
   res.setHeader('Content-Type', 'video/mp4');
   res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Transfer-Encoding', 'chunked');
+  res.setHeader('Accept-Ranges', 'none');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
 
   const ff = spawn('ffmpeg', [
+    '-loglevel', 'warning',
     '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    '-probesize', '10M',
-    '-loglevel', 'error',
+    '-headers', 'Referer: https://real-debrid.com\r\n',
+    '-probesize', '20M',
+    '-analyzeduration', '10000000',
     '-i', url,
     '-c:v', 'copy',
     '-c:a', 'aac', '-ac', '2', '-b:a', '192k',
-    '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+    '-movflags', 'frag_keyframe+empty_moov+default_base_moof+delay_moov',
+    '-frag_duration', '2000000',   // 2-second fragments — good for streaming
     '-f', 'mp4', 'pipe:1',
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
-  ff.stdout.pipe(res);
-  ff.stderr.on('data', d => process.stdout.write('[ffmpeg] ' + d.toString().split('\n')[0] + '\n'));
-  ff.on('error', err => { console.error('[ffmpeg]', err.message); if (!res.headersSent) res.status(500).end(); });
+  let started = false;
+  ff.stdout.on('data', chunk => { started = true; res.write(chunk); });
+  ff.stdout.on('end', () => res.end());
+  ff.stderr.on('data', d => console.error('[ffmpeg]', d.toString().trimEnd()));
+  ff.on('error', err => {
+    console.error('[ffmpeg] spawn error:', err.message);
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
+  });
+  ff.on('close', code => {
+    if (code !== 0) console.error(`[ffmpeg] exited with code ${code}`);
+    if (!res.writableEnded) res.end();
+  });
 
-  const kill = () => ff.kill('SIGKILL');
+  const kill = () => { try { ff.kill('SIGKILL'); } catch {} };
   req.on('close', kill);
-  res.on('close', kill);
 });
 
 // =============================================================================
@@ -534,6 +548,15 @@ app.delete('/api/history/:tmdbId', async (req, res) => {
   if (!pool) return res.json({ ok: true });
   try { await pool.query('DELETE FROM watch_history WHERE tmdb_id=$1', [req.params.tmdbId]); res.json({ ok: true }); }
   catch (err) { dbErr(res, err); }
+});
+
+// Check if ffmpeg is available on this deployment
+app.get('/api/transcode/check', (req, res) => {
+  const ff = spawn('ffmpeg', ['-version'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let out = '';
+  ff.stdout.on('data', d => out += d.toString());
+  ff.on('close', code => res.json({ available: code === 0, version: out.split('\n')[0] || '' }));
+  ff.on('error', () => res.json({ available: false, version: '' }));
 });
 
 app.get('/api/rd/status', (_, res) => res.json({ configured: !!RD_API_KEY }));
