@@ -600,6 +600,7 @@ function buildCard(item,i){
 }
 
 async function openModal(item,isTV){
+  if(!document.getElementById('modal-bg').classList.contains('open'))pushLayer('modal');
   trailerData=null;closeTrailer();
   currentModalItem=item;currentModalIsTV=isTV;
   const btn=document.getElementById('trailer-btn');
@@ -658,6 +659,8 @@ async function openModal(item,isTV){
     });
     if(seasons.length>0)loadEpisodes(item.id,seasons[0].season_number);
   }
+  // Auto-focus first modal button for TV/keyboard navigation
+  setTimeout(()=>{const f=document.querySelector('#modal-bg .btn:not(.hidden):not(.loading)');if(f)navFocus(f);},350);
 }
 
 async function loadEpisodes(tvId,seasonNum){
@@ -854,6 +857,8 @@ function copyStreamLink(){
 }
 
 function playStream(url,title,rawUrl){
+  pushLayer('video');
+  navClearFocus();
   _rawStreamUrl=rawUrl||url;
   const overlay=document.getElementById('video-overlay');
   const vtitle=document.getElementById('video-title');
@@ -912,6 +917,7 @@ function closeVideo(){
   if(v){v.removeAttribute('src');v.load();}
   document.getElementById('video-overlay').classList.remove('open');
   document.body.style.overflow='';
+  if(document.getElementById('modal-bg').classList.contains('open'))pushLayer('modal');
 }
 
 
@@ -1009,36 +1015,9 @@ const player = new Plyr('#video-player', {
   storage: { enabled: true, key: 'watchcmd-plyr' },
 });
 // ─── HISTORY / BACK BUTTON ────────────────────────────────────────────────────
-// Push a history entry whenever we open a layer so the browser/TV back button works.
 function pushLayer(name){history.pushState({layer:name},'');}
 
-const _origOpenModal=openModal;
-async function openModal(item,isTV){
-  if(!document.getElementById('modal-bg').classList.contains('open'))pushLayer('modal');
-  await _origOpenModal(item,isTV);
-  // Auto-focus the first modal action button for TV navigation
-  setTimeout(()=>{
-    const first=document.querySelector('#modal-bg .btn:not(.hidden):not(.loading)');
-    if(first)navFocus(first);
-  },350);
-}
-
-const _origPlayStream=playStream;
-function playStream(url,title,rawUrl){
-  pushLayer('video');
-  _origPlayStream(url,title,rawUrl);
-  navClearFocus();
-}
-
-const _origCloseVideo=closeVideo;
-function closeVideo(){
-  _origCloseVideo();
-  // If modal is still open, push its layer back so back still works from modal
-  if(document.getElementById('modal-bg').classList.contains('open'))pushLayer('modal');
-}
-
-window.addEventListener('popstate',e=>{
-  const layer=e.state?.layer;
+window.addEventListener('popstate',()=>{
   if(document.getElementById('video-overlay').classList.contains('open')){closeVideo();return;}
   if(document.getElementById('modal-bg').classList.contains('open')){closeModalDirect();return;}
 });

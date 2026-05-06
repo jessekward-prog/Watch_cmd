@@ -12,6 +12,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const TMDB_KEY = process.env.TMDB_KEY || '';
 const RD_API_KEY = process.env.RD_API_KEY || '';
+// Set BROWSER_SAFE=false to allow HEVC/AC3/DTS (e.g. when packaging as an Android TV APK)
+const BROWSER_SAFE = process.env.BROWSER_SAFE !== 'false';
 
 app.use(cors());
 app.use(express.json());
@@ -434,17 +436,17 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     });
     console.log(`[Stream] RD cache: ${cached.length}/${top20.length} torrents available`);
 
-    // Drop codec/audio combos that don't play natively in browsers:
-    // HEVC = sound but no picture in Chrome; AC3/DTS/TrueHD = picture but no sound
+    // Drop codec/audio combos that don't play natively in browsers.
+    // Disable by setting BROWSER_SAFE=false (e.g. for an Android TV APK build).
     const BAD_AUDIO  = new Set(['DTS', 'DTS-HD', 'TrueHD', 'Atmos', 'DD5.1']);
     const BAD_CODEC  = new Set(['HEVC']);
-    const browserSafe = t => !BAD_AUDIO.has(t.audio) && !BAD_CODEC.has(t.codec);
-    const safeCached = cached.filter(browserSafe);
+    const isSafe = t => !BROWSER_SAFE || (!BAD_AUDIO.has(t.audio) && !BAD_CODEC.has(t.codec));
+    const safeCached = cached.filter(isSafe);
 
-    // Use safe cached; fall back to any cached (bad codec beats no stream); last resort uncached safe
+    // Use safe cached; fall back to any cached; last resort uncached safe
     const top = safeCached.length > 0 ? safeCached.slice(0, 10)
               : cached.length > 0     ? cached.slice(0, 10)
-              : top20.filter(browserSafe).slice(0, 5);
+              : top20.filter(isSafe).slice(0, 5);
     if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results anyway...'})}\n\n`);
     else if (useSSE) res.write(`data: ${JSON.stringify({status:`Found ${cached.length} cached streams, resolving...`})}\n\n`);
     console.log(`[Stream] Resolving ${top.length} torrents...`);
