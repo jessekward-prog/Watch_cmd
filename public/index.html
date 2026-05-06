@@ -98,7 +98,7 @@
   .nav-focus{outline:2px solid var(--accent)!important;outline-offset:3px;z-index:20!important}
   .card.nav-focus{transform:scale(1.08) translateY(-4px)}
   .ep-card.nav-focus{border-color:var(--accent)!important}
-  .season-tab.nav-focus,.btn.nav-focus,.ep-btn-stream.nav-focus,.ep-btn-choose.nav-focus,.stream-option.nav-focus{outline:2px solid var(--accent);outline-offset:2px}
+  .season-tab.nav-focus,.btn.nav-focus,.ep-btn-stream.nav-focus,.ep-stream-opt.nav-focus,.stream-option.nav-focus{outline:2px solid var(--accent);outline-offset:2px}
   .card img{width:100%;height:100%;object-fit:cover;display:block;background:var(--surface2)}
   .card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(8,10,15,.95) 0%,transparent 60%);opacity:0;transition:opacity .25s;display:flex;flex-direction:column;justify-content:flex-end;padding:.75rem}
   .card:hover .card-overlay{opacity:1}
@@ -162,13 +162,23 @@
   .ep-card.expanded .ep-chevron{transform:rotate(180deg)}
   .ep-card-body{display:none;padding:.65rem .75rem .75rem;border-top:1px solid rgba(255,255,255,.05)}
   .ep-card.expanded .ep-card-body{display:block}
-  .ep-body-actions{display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap}
-  .ep-btn-stream{padding:.4rem 1rem;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--accent2);color:#fff;border:none;border-radius:3px;cursor:pointer;transition:background .15s}
+  .ep-body-top{display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.6rem}
+  .ep-body-blurb{flex:1;font-size:.78rem;color:rgba(232,230,224,.6);line-height:1.6}
+  .ep-btn-stream{flex-shrink:0;padding:.4rem 1rem;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--accent2);color:#fff;border:none;border-radius:3px;cursor:pointer;transition:background .15s;white-space:nowrap}
   .ep-btn-stream:hover{background:#d4354d}
-  .ep-btn-choose{padding:.4rem .9rem;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--surface);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:3px;cursor:pointer;transition:all .15s}
-  .ep-btn-choose:hover{border-color:rgba(255,255,255,.3);color:#fff}
-  .ep-btn-stream.loading,.ep-btn-choose.loading{opacity:.55;pointer-events:none}
-  .ep-body-blurb{font-size:.78rem;color:rgba(232,230,224,.6);line-height:1.6}
+  .ep-btn-stream.loading{opacity:.55;pointer-events:none}
+  .ep-inline-streams{margin-top:.6rem;display:flex;flex-direction:column;gap:.35rem}
+  .ep-inline-streams .stream-loading{font-size:.75rem;color:var(--muted);padding:.5rem 0;text-align:center}
+  .ep-inline-streams .stream-error{font-size:.75rem;color:var(--accent2);padding:.5rem 0;text-align:center}
+  .ep-stream-opt{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;background:var(--surface);border:1px solid rgba(255,255,255,.06);border-radius:3px;cursor:pointer;transition:border-color .15s}
+  .ep-stream-opt:hover{border-color:rgba(232,184,75,.3)}
+  .ep-stream-opt .stream-quality{font-family:'Bebas Neue',sans-serif;font-size:.95rem;letter-spacing:.06em;color:var(--accent);flex-shrink:0;min-width:42px}
+  .ep-stream-opt .stream-info{flex:1;min-width:0}
+  .ep-stream-opt .stream-tags{font-size:.65rem;color:var(--muted);margin-bottom:.1rem}
+  .ep-stream-opt .stream-filename{font-size:.68rem;color:rgba(232,230,224,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ep-stream-opt .stream-actions{display:flex;gap:.3rem;flex-shrink:0}
+  .ep-stream-opt .stream-act-btn{padding:.2rem .45rem;font-size:.62rem;font-weight:600;letter-spacing:.04em;background:var(--surface2);color:var(--muted);border:1px solid rgba(255,255,255,.08);border-radius:2px;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .ep-stream-opt .stream-act-btn:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
   .episodes-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem;letter-spacing:.06em}
   /* ─── WATCH HISTORY ─── */
   .watch-badge{position:absolute;bottom:.45rem;right:.45rem;background:#22c55e;color:#fff;font-size:.65rem;font-weight:700;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:3;pointer-events:none}
@@ -714,10 +724,11 @@ async function loadEpisodes(tvId,seasonNum){
         <span class="ep-chevron">▼</span>
       </div>
       <div class="ep-card-body">
-        <div class="ep-body-actions">
-          ${rdEnabled?`<button class="ep-btn-stream">⚡ Stream Now</button><button class="ep-btn-choose">≡ Choose Stream</button>`:''}
+        <div class="ep-body-top">
+          ${rdEnabled?`<button class="ep-btn-stream">⚡ Stream</button>`:''}
+          <div class="ep-body-blurb">${ep.overview||'No description available.'}</div>
         </div>
-        <div class="ep-body-blurb">${ep.overview||'No description available.'}</div>
+        <div class="ep-inline-streams"></div>
       </div>`;
     card.querySelector('.ep-card-header').onclick=()=>{
       const wasOpen=card.classList.contains('expanded');
@@ -727,15 +738,85 @@ async function loadEpisodes(tvId,seasonNum){
     if(rdEnabled){
       card.querySelector('.ep-btn-stream').onclick=e=>{
         e.stopPropagation();
-        fetchStreams(seasonNum,ep.episode_number,epLabel,true);
-      };
-      card.querySelector('.ep-btn-choose').onclick=e=>{
-        e.stopPropagation();
-        fetchStreams(seasonNum,ep.episode_number,epLabel,false);
+        fetchEpisodeStreams(seasonNum,ep.episode_number,epLabel,card);
       };
     }
     list.appendChild(card);
   });
+}
+
+async function fetchEpisodeStreams(seasonNum,epNum,epLabel,card){
+  const btn=card.querySelector('.ep-btn-stream');
+  const inlineList=card.querySelector('.ep-inline-streams');
+  if(!btn||!inlineList)return;
+  // Toggle: if already loaded, clear and reset button
+  if(btn.dataset.loaded==='1'){
+    btn.dataset.loaded='';
+    btn.textContent='⚡ Stream';
+    inlineList.innerHTML='';
+    return;
+  }
+  btn.classList.add('loading');btn.textContent='Searching…';
+  inlineList.innerHTML='<div class="stream-loading">Searching torrents…</div>';
+  const type='tv';
+  const id=currentModalItem&&currentModalItem.id;
+  if(!id){inlineList.innerHTML='<div class="stream-error">No title loaded</div>';btn.classList.remove('loading');btn.textContent='⚡ Stream';return;}
+  let url=`/api/stream/${type}/${id}?sse=1&s=${seasonNum}&e=${epNum}`;
+  let count=0;
+  try{
+    const evtSource=new EventSource(url);
+    evtSource.onmessage=function(e){
+      const data=JSON.parse(e.data);
+      if(data.status&&count===0){
+        inlineList.innerHTML=`<div class="stream-loading">${data.status}</div>`;
+      }
+      if(data.stream){
+        if(count===0)inlineList.innerHTML='';
+        count++;
+        const s=data.stream;
+        const label=s.filename||epLabel;
+        const opt=document.createElement('div');opt.className='ep-stream-opt';
+        opt.innerHTML=`<div class="stream-quality">${s.quality||'?'}</div>
+          <div class="stream-info">
+            <div class="stream-tags">${s.tags||''}</div>
+            <div class="stream-filename">${s.filename||''}</div>
+          </div>
+          <div class="stream-actions">
+            <button class="stream-act-btn">▶ Play</button>
+            <button class="stream-act-btn">🔊 Fix Audio</button>
+          </div>`;
+        const [btnPlay,btnFix]=opt.querySelectorAll('.stream-act-btn');
+        btnPlay.onclick=e=>{e.stopPropagation();playStream(s.url,label,s.url);};
+        btnFix.onclick=e=>{e.stopPropagation();playStream(`/api/transcode?url=${encodeURIComponent(s.url)}`,label,s.url);};
+        inlineList.appendChild(opt);
+        btn.textContent=`▲ ${count} Stream${count>1?'s':''}`;
+      }
+      if(data.done){
+        evtSource.close();
+        btn.classList.remove('loading');
+        btn.dataset.loaded='1';
+        if(count===0){
+          inlineList.innerHTML=`<div class="stream-error">${data.error||'No browser-compatible streams found'}</div>`;
+          btn.textContent='✕ No Streams';
+          btn.dataset.loaded='';
+        }else{
+          btn.textContent=`▲ ${count} Stream${count>1?'s':''}`;
+        }
+      }
+    };
+    evtSource.onerror=function(){
+      evtSource.close();
+      btn.classList.remove('loading');
+      if(count===0){
+        inlineList.innerHTML='<div class="stream-error">Connection lost — try again</div>';
+        btn.textContent='⚡ Stream';
+        btn.dataset.loaded='';
+      }
+    };
+  }catch(err){
+    btn.classList.remove('loading');btn.textContent='⚡ Stream';btn.dataset.loaded='';
+    inlineList.innerHTML=`<div class="stream-error">Error: ${err.message}</div>`;
+  }
 }
 
 function playTrailer(){
@@ -1121,7 +1202,8 @@ function navCandidates(){
       ...document.querySelectorAll('#modal-bg .modal-actions .btn:not(.hidden)'),
       ...document.querySelectorAll('.season-tab'),
       ...document.querySelectorAll('.ep-card'),
-      ...document.querySelectorAll('.ep-card.expanded .ep-btn-stream,.ep-card.expanded .ep-btn-choose'),
+      ...document.querySelectorAll('.ep-card.expanded .ep-btn-stream'),
+      ...document.querySelectorAll('.ep-card.expanded .ep-stream-opt .stream-act-btn'),
       ...document.querySelectorAll('.stream-option'),
     ];
   }
