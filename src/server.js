@@ -434,8 +434,13 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     });
     console.log(`[Stream] RD cache: ${cached.length}/${top20.length} torrents available`);
 
-    // Use cached torrents; if none, fall back to top 5 (they may still resolve if previously added)
-    const top = cached.length > 0 ? cached.slice(0, 10) : top20.slice(0, 5);
+    // Drop AC3/DTS/TrueHD — none of these decode natively in any browser
+    const BAD_AUDIO = new Set(['DTS', 'DTS-HD', 'TrueHD', 'Atmos', 'DD5.1']);
+    const safeCached = cached.filter(t => !BAD_AUDIO.has(t.audio));
+
+    // Use cached torrents; if none, fall back to top 5 uncached
+    const top = safeCached.length > 0 ? safeCached.slice(0, 10)
+              : top20.filter(t => !BAD_AUDIO.has(t.audio)).slice(0, 5);
     if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results anyway...'})}\n\n`);
     else if (useSSE) res.write(`data: ${JSON.stringify({status:`Found ${cached.length} cached streams, resolving...`})}\n\n`);
     console.log(`[Stream] Resolving ${top.length} torrents...`);
