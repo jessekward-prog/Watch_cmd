@@ -237,8 +237,14 @@ class TorrentProvider {
     if (season && episode) {
       const s = parseInt(season, 10), e = parseInt(episode, 10);
       const specific = torrents.filter(t => parseInt(t.season, 10) === s && parseInt(t.episode, 10) === e);
-      if (specific.length) torrents = specific;
-      else torrents = []; // no exact match — don't return wrong episodes
+      if (specific.length) {
+        torrents = specific;
+      } else {
+        // No exact match — keep same-season entries only (lets server filter handle it)
+        const sameSeason = torrents.filter(t => parseInt(t.season, 10) === s);
+        if (sameSeason.length) torrents = sameSeason;
+        // else: keep all (no season metadata at all — let server filter decide)
+      }
     }
     const results = torrents.map(t => {
       const hash = (t.hash || '').toLowerCase();
@@ -430,12 +436,18 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
       return res.json({ streams: [], error: 'No torrents found' });
     }
 
-    // For TV episode searches, drop torrents that are clearly for the wrong episode
+    // For TV episode searches, drop torrents that are clearly a different specific episode
     if (type === 'tv' && season && episode) {
       const S = String(+season).padStart(2,'0'), E = String(+episode).padStart(2,'0');
-      const epPat   = new RegExp(`S${S}E${E}|${+season}x${E}`, 'i');
-      const packPat = /complete|season[\s._-]?\d|s\d{1,2}[\s._](bluray|web|hdtv|dvdrip)/i;
-      const filtered = torrents.filter(t => epPat.test(t.title) || packPat.test(t.title));
+      const epPat      = new RegExp(`S${S}E${E}|${+season}x${E}`, 'i');
+      const packPat    = /complete|season[\s._-]?\d|s\d{1,2}[\s._](bluray|web|hdtv|dvdrip)/i;
+      const anyEpPat   = /S\d{1,2}E\d{1,2}/i; // looks like a specific episode
+      const filtered = torrents.filter(t => {
+        if (epPat.test(t.title))    return true;  // correct episode
+        if (packPat.test(t.title))  return true;  // season/complete pack
+        if (anyEpPat.test(t.title)) return false; // clearly a different episode
+        return true;                               // ambiguous — keep
+      });
       if (filtered.length) { torrents = filtered; console.log(`[Stream] Episode filter: ${torrents.length} torrents`); }
     }
 
