@@ -838,7 +838,7 @@ async function fetchStreams(season=null,episode=null,epLabel=null,autoPlay=false
       if(data.done){
         evtSource.close();
         if(count===0){
-          list.innerHTML=`<div class="stream-error">${data.error||'No cached streams found on Real-Debrid'}</div>`;
+          list.innerHTML=`<div class="stream-error">${data.error||'No browser-compatible streams found — this title may only have HEVC/AC3 versions cached on Real-Debrid'}</div>`;
           if(!sbtn.classList.contains('hidden')){sbtn.className='btn btn-stream';sbtn.textContent='⚡ No Streams';}
         }
       }

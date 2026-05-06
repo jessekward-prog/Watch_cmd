@@ -435,13 +435,13 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
 
     // Check which torrents are already cached in RD (instant availability)
     if (useSSE) res.write(`data: ${JSON.stringify({status:'Checking RD cache...'})}\n\n`);
-    const top20 = torrents.slice(0, 20);
-    const avail = await rd.checkInstantAvailability(top20.map(t => t.infoHash));
-    const cached = top20.filter(t => {
+    const top40 = torrents.slice(0, 40);
+    const avail = await rd.checkInstantAvailability(top40.map(t => t.infoHash));
+    const cached = top40.filter(t => {
       const a = avail[t.infoHash];
       return a && a.rd && a.rd.length > 0;
     });
-    console.log(`[Stream] RD cache: ${cached.length}/${top20.length} torrents available`);
+    console.log(`[Stream] RD cache: ${cached.length}/${top40.length} torrents available`);
 
     // Drop codec/audio combos that don't play natively in browsers.
     // Disable by setting BROWSER_SAFE=false (e.g. for an Android TV APK build).
@@ -449,12 +449,15 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     const BAD_CODEC = new Set(['HEVC']);
     const isSafe = t => !BROWSER_SAFE || (!BAD_AUDIO.has(t.audio) && !BAD_CODEC.has(t.codec));
     const safeCached = cached.filter(isSafe);
+    const allSafe   = top40.filter(isSafe);
 
-    // No fallback to unsafe streams — better to show "no streams" than a broken one
-    const top = safeCached.length > 0 ? safeCached.slice(0, 10)
-              : top20.filter(isSafe).slice(0, 5);
-    if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results anyway...'})}\n\n`);
-    else if (useSSE) res.write(`data: ${JSON.stringify({status:`Found ${cached.length} cached streams, resolving...`})}\n\n`);
+    // Prefer safe cached; fall back to trying all safe torrents (resolveStream filters uncached ones out)
+    const top = safeCached.length > 0 ? safeCached.slice(0, 10) : allSafe.slice(0, 15);
+
+    const cachedOnlyHEVC = cached.length > 0 && safeCached.length === 0;
+    if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results...'})}\n\n`);
+    else if (cachedOnlyHEVC && useSSE) res.write(`data: ${JSON.stringify({status:'Cached streams are HEVC/AC3 only — searching for browser-compatible versions...'})}\n\n`);
+    else if (useSSE) res.write(`data: ${JSON.stringify({status:`Found ${safeCached.length} compatible cached streams, resolving...`})}\n\n`);
     console.log(`[Stream] Resolving ${top.length} torrents...`);
     const MAX_BYTES = 8 * 1024 * 1024 * 1024; // 8 GB
     const resolve = async (t) => {
