@@ -125,9 +125,12 @@
   .episodes-list{display:flex;flex-direction:column;gap:.5rem}
   .ep-row{display:flex;gap:1rem;align-items:flex-start;padding:.75rem;border-radius:3px;background:var(--surface2);border:1px solid rgba(255,255,255,.04);transition:border-color .15s}
   .ep-row:hover{border-color:rgba(232,184,75,.25)}
-  .ep-thumb{flex:0 0 100px;height:58px;border-radius:2px;overflow:hidden;background:var(--bg)}
+  .ep-thumb{flex:0 0 100px;height:58px;border-radius:2px;overflow:hidden;background:var(--bg);position:relative}
   .ep-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .ep-thumb-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:var(--muted)}
+  .ep-progress{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,.15)}
+  .ep-progress-fill{height:100%;background:var(--accent2);border-radius:0 2px 0 0}
+  .ep-watched-badge{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#22c55e}
   .ep-info{flex:1;min-width:0}
   .ep-header{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;margin-bottom:.3rem}
   .ep-num{font-size:.68rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
@@ -653,7 +656,12 @@ async function loadEpisodes(tvId,seasonNum){
     const row=document.createElement('div');row.className='ep-row';
     const thumb=ep.still_path?`${IMG}w300${ep.still_path}`:null;
     const air=ep.air_date?new Date(ep.air_date).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';
-    row.innerHTML=`<div class="ep-thumb">${thumb?`<img src="${thumb}" loading="lazy">`:'<div class="ep-thumb-placeholder">▶</div>'}</div>
+    const epHist=watchHistory.get(histKey(tvId,'tv',seasonNum,ep.episode_number));
+    const pct=epHist?Math.round((epHist.progress||0)*100):0;
+    const thumbOverlay=epHist&&epHist.watched
+      ?`<div class="ep-watched-badge">✓</div>`
+      :(pct>5?`<div class="ep-progress"><div class="ep-progress-fill" style="width:${pct}%"></div></div>`:'');
+    row.innerHTML=`<div class="ep-thumb">${thumb?`<img src="${thumb}" loading="lazy">`:'<div class="ep-thumb-placeholder">▶</div>'}${thumbOverlay}</div>
       <div class="ep-info">
         <div class="ep-header"><span class="ep-num">Ep ${ep.episode_number}${air?' · '+air:''}</span><span class="ep-runtime">${ep.runtime?ep.runtime+'m':''}</span></div>
         <div class="ep-title">${ep.name||'Episode '+ep.episode_number}</div>
