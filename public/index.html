@@ -41,16 +41,17 @@
   nav{display:flex;gap:1.5rem;align-items:center}
   nav a{color:var(--muted);text-decoration:none;font-size:.82rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;transition:color .2s;cursor:pointer}
   nav a:hover,nav a.active{color:var(--text)}
-  .hero{height:520px;position:relative;margin-top:64px;overflow:hidden;display:flex;align-items:flex-end;padding:3rem} /* mobile overrides margin-top in MQ */
-  .hero-bg{position:absolute;inset:0;background-size:cover;background-position:center 20%;filter:brightness(.45) saturate(.8);transform:scale(1.03);transition:background-image .5s}
-  .hero-vignette{position:absolute;inset:0;background:linear-gradient(to right,rgba(8,10,15,.88) 0%,rgba(8,10,15,.3) 55%,transparent 100%),linear-gradient(to top,rgba(8,10,15,1) 0%,rgba(8,10,15,.4) 40%,transparent 100%)}
-  .hero-content{position:relative;max-width:520px}
-  .hero-tag{display:inline-block;font-size:.7rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);padding:3px 10px;margin-bottom:1rem;border-radius:2px}
-  .hero-title{font-family:'Bebas Neue',sans-serif;font-size:4.5rem;line-height:.92;letter-spacing:.04em;margin-bottom:1rem}
-  .hero-meta{display:flex;gap:1rem;align-items:center;margin-bottom:1rem;font-size:.82rem;color:var(--muted)}
+  .hero{height:220px;position:relative;margin-top:64px;overflow:hidden;display:flex;align-items:flex-end;padding:2rem 3rem}
+  .hero-bg{position:absolute;inset:0;background-size:cover;background-position:center 25%;filter:brightness(.4) saturate(.8);transform:scale(1.03);transition:background-image .5s}
+  .hero-vignette{position:absolute;inset:0;background:linear-gradient(to right,rgba(8,10,15,.92) 0%,rgba(8,10,15,.4) 55%,transparent 100%),linear-gradient(to top,rgba(8,10,15,1) 0%,rgba(8,10,15,.3) 60%,transparent 100%)}
+  .hero-content{position:relative;max-width:600px;display:flex;align-items:center;gap:2rem;width:100%}
+  .hero-tag{display:inline-block;font-size:.65rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);padding:2px 8px;margin-bottom:.5rem;border-radius:2px}
+  .hero-title{font-family:'Bebas Neue',sans-serif;font-size:2.8rem;line-height:.95;letter-spacing:.04em;margin-bottom:.35rem}
+  .hero-meta{display:flex;gap:.75rem;align-items:center;font-size:.78rem;color:var(--muted)}
   .hero-meta .rating{color:var(--accent);font-weight:600}
-  .hero-desc{font-size:.9rem;line-height:1.65;color:rgba(232,230,224,.75);margin-bottom:1.5rem;max-width:420px}
-  .hero-btns{display:flex;gap:.75rem}
+  .hero-desc{display:none}
+  .hero-text{flex:1;min-width:0}
+  .hero-btns{display:flex;gap:.6rem;flex-shrink:0}
   .btn{padding:.6rem 1.6rem;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;border:none;cursor:pointer;border-radius:2px;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem}
   .btn-primary{background:var(--accent);color:#080a0f}
   .btn-primary:hover{background:#f5cc6a;transform:translateY(-1px)}
@@ -176,9 +177,8 @@
     .mode-toggle{flex-shrink:0}
     nav{flex-wrap:nowrap;gap:.9rem;flex-shrink:0}
     nav a{white-space:nowrap}
-    .hero{padding:1.5rem;margin-top:92px}
-    .hero-title{font-size:3rem}
-    .search-bar{padding:1rem 1.25rem 0}
+    .hero{display:none}
+    .search-bar{padding:1rem 1.25rem 0;margin-top:92px}
     .rows-wrapper{padding:1.5rem 1.25rem 3rem}
     :root{--card-w:140px;--card-h:210px}
   }
@@ -265,10 +265,11 @@
   <div class="hero-bg" id="hero-bg"></div>
   <div class="hero-vignette"></div>
   <div class="hero-content">
-    <div class="hero-tag" id="hero-tag">Featured</div>
-    <div class="hero-title" id="hero-title">Loading…</div>
-    <div class="hero-meta"><span class="rating" id="hero-rating">—</span><span id="hero-year">—</span></div>
-    <p class="hero-desc" id="hero-desc"></p>
+    <div class="hero-text">
+      <div class="hero-tag" id="hero-tag">Featured</div>
+      <div class="hero-title" id="hero-title">Loading…</div>
+      <div class="hero-meta"><span class="rating" id="hero-rating">—</span><span id="hero-year">—</span></div>
+    </div>
     <div class="hero-btns">
       <button class="btn btn-primary" onclick="openModal(heroes[heroIdx],mode==='tv')">More Info</button>
       <button class="btn btn-outline" onclick="cycleHero()">Next Featured</button>
