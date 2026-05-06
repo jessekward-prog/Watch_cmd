@@ -179,6 +179,14 @@
   .ep-stream-opt .stream-actions{display:flex;gap:.3rem;flex-shrink:0}
   .ep-stream-opt .stream-act-btn{padding:.2rem .45rem;font-size:.62rem;font-weight:600;letter-spacing:.04em;background:var(--surface2);color:var(--muted);border:1px solid rgba(255,255,255,.08);border-radius:2px;cursor:pointer;transition:all .15s;white-space:nowrap}
   .ep-stream-opt .stream-act-btn:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+  /* Stream type colour coding — 30% opacity borders */
+  .stream-rd,.ep-stream-opt.stream-rd{border-color:rgba(46,204,113,.3)!important;background:rgba(46,204,113,.04)}
+  .stream-wt,.ep-stream-opt.stream-wt{border-color:rgba(52,152,219,.3)!important;background:rgba(52,152,219,.04)}
+  .stream-incompatible,.ep-stream-opt.stream-incompatible{border-color:rgba(201,65,90,.3)!important;background:rgba(201,65,90,.04)}
+  .stream-type-badge{font-size:.58rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:1px 5px;border-radius:2px;flex-shrink:0;align-self:center}
+  .stream-type-badge.rd{background:rgba(46,204,113,.15);color:rgba(46,204,113,.9)}
+  .stream-type-badge.wt{background:rgba(52,152,219,.15);color:rgba(52,152,219,.9)}
+  .stream-type-badge.bad{background:rgba(201,65,90,.15);color:rgba(201,65,90,.9)}
   .episodes-loading{text-align:center;padding:2rem;color:var(--muted);font-size:.82rem;letter-spacing:.06em}
   /* ─── WATCH HISTORY ─── */
   .watch-badge{position:absolute;bottom:.45rem;right:.45rem;background:#22c55e;color:#fff;font-size:.65rem;font-weight:700;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:3;pointer-events:none}
@@ -775,19 +783,29 @@ async function fetchEpisodeStreams(seasonNum,epNum,epLabel,card){
         count++;
         const s=data.stream;
         const label=s.filename||epLabel;
-        const opt=document.createElement('div');opt.className='ep-stream-opt';
+        const isWT=s.streamType==='webtorrent';
+        const isBad=s.streamType==='incompatible';
+        const typeClass=isWT?'stream-wt':isBad?'stream-incompatible':'stream-rd';
+        const typeBadge=isWT?'<span class="stream-type-badge wt">Torrent</span>':isBad?'<span class="stream-type-badge bad">⚠ No Audio</span>':'<span class="stream-type-badge rd">RD</span>';
+        const opt=document.createElement('div');opt.className=`ep-stream-opt ${typeClass}`;
         opt.innerHTML=`<div class="stream-quality">${s.quality||'?'}</div>
           <div class="stream-info">
             <div class="stream-tags">${s.tags||''}</div>
             <div class="stream-filename">${s.filename||''}</div>
           </div>
+          ${typeBadge}
           <div class="stream-actions">
-            <button class="stream-act-btn">▶ Play</button>
-            <button class="stream-act-btn">🔊 Fix Audio</button>
+            ${isWT?`<button class="stream-act-btn">▶ Stream</button>`
+              :`<button class="stream-act-btn">▶ Play</button>
+                <button class="stream-act-btn">🔊 Fix Audio</button>`}
           </div>`;
-        const [btnPlay,btnFix]=opt.querySelectorAll('.stream-act-btn');
-        btnPlay.onclick=e=>{e.stopPropagation();playStream(s.url,label,s.url);};
-        btnFix.onclick=e=>{e.stopPropagation();playStream(`/api/transcode?url=${encodeURIComponent(s.url)}`,label,s.url);};
+        const btns=opt.querySelectorAll('.stream-act-btn');
+        if(isWT){
+          btns[0].onclick=e=>{e.stopPropagation();_pendingEpisode={season:seasonNum,episode:epNum};playWebTorrent(s.magnet,s.fileIdx,label);};
+        }else{
+          btns[0].onclick=e=>{e.stopPropagation();_pendingEpisode={season:seasonNum,episode:epNum};playStream(s.url,label,s.url);};
+          if(btns[1])btns[1].onclick=e=>{e.stopPropagation();_pendingEpisode={season:seasonNum,episode:epNum};playStream(`/api/transcode?url=${encodeURIComponent(s.url)}`,label,s.url);};
+        }
         inlineList.appendChild(opt);
         btn.textContent=`▲ ${count} Stream${count>1?'s':''}`;
       }
@@ -937,34 +955,45 @@ async function fetchStreams(season=null,episode=null,epLabel=null,autoPlay=false
       }
 
       if(data.stream){
-        // A stream arrived — add it
-        if(count===0) list.innerHTML=''; // clear loading message
-        count++;
+        if(count===0) list.innerHTML='';
         const s=data.stream;
-        if(autoPlay&&count===1){evtSource.close();playStream(s.url,s.filename||titleOf(currentModalItem),s.url);return;}
+        if(autoPlay&&count===0&&s.url){evtSource.close();playStream(s.url,s.filename||titleOf(currentModalItem),s.url);return;}
+        count++;
         const label=s.filename||titleOf(currentModalItem);
-        const opt=document.createElement('div');opt.className='stream-option';
-        opt.onclick=()=>playStream(s.url,label,s.url);
+        const isWT=s.streamType==='webtorrent';
+        const isBad=s.streamType==='incompatible';
+        const typeClass=isWT?'stream-wt':isBad?'stream-incompatible':'stream-rd';
+        const typeBadge=isWT?'<span class="stream-type-badge wt">Torrent</span>':isBad?'<span class="stream-type-badge bad">⚠ No Audio</span>':'<span class="stream-type-badge rd">RD</span>';
+        const opt=document.createElement('div');opt.className=`stream-option ${typeClass}`;
         opt.innerHTML=`<div class="stream-quality">${s.quality}</div>
           <div class="stream-info">
             <div class="stream-tags">${s.tags}</div>
-            <div class="stream-filename">${s.filename}</div>
+            <div class="stream-filename">${s.filename||''}</div>
           </div>
+          ${typeBadge}
           <div class="stream-actions">
-            <button class="stream-act-btn" title="Play direct (fastest)">▶ Play</button>
-            <button class="stream-act-btn" title="Transcode audio via server — fixes AC3/DTS no-audio">🔊 Fix Audio</button>
-            <button class="stream-act-btn" title="Copy direct link for VLC / external player">📋</button>
+            ${isWT?`<button class="stream-act-btn">▶ Stream</button>`
+              :`<button class="stream-act-btn">▶ Play</button>
+                <button class="stream-act-btn">🔊 Fix Audio</button>
+                <button class="stream-act-btn">📋</button>`}
           </div>`;
-        const [btnPlay,btnFix,btnCopy]=opt.querySelectorAll('.stream-act-btn');
-        btnPlay.onclick=e=>{e.stopPropagation();playStream(s.url,label,s.url);};
-        btnFix.onclick=e=>{e.stopPropagation();playStream(`/api/transcode?url=${encodeURIComponent(s.url)}`,label,s.url);};
-        btnCopy.onclick=e=>{
-          e.stopPropagation();
-          navigator.clipboard.writeText(s.url).then(()=>{
-            btnCopy.textContent='✓';btnCopy.classList.add('copied');
-            setTimeout(()=>{btnCopy.textContent='📋';btnCopy.classList.remove('copied');},2000);
-          }).catch(()=>prompt('Copy this link:',s.url));
-        };
+        const btns=opt.querySelectorAll('.stream-act-btn');
+        if(isWT){
+          btns[0].onclick=e=>{e.stopPropagation();_pendingEpisode={season:null,episode:null};playWebTorrent(s.magnet,s.fileIdx,label);};
+          opt.onclick=()=>{_pendingEpisode={season:null,episode:null};playWebTorrent(s.magnet,s.fileIdx,label);};
+        }else{
+          const[btnPlay,btnFix,btnCopy]=btns;
+          btnPlay.onclick=e=>{e.stopPropagation();playStream(s.url,label,s.url);};
+          btnFix.onclick=e=>{e.stopPropagation();playStream(`/api/transcode?url=${encodeURIComponent(s.url)}`,label,s.url);};
+          btnCopy.onclick=e=>{
+            e.stopPropagation();
+            const link=s.url||s.magnet||'';
+            navigator.clipboard.writeText(link).then(()=>{
+              btnCopy.textContent='✓';setTimeout(()=>btnCopy.textContent='📋',2000);
+            }).catch(()=>prompt('Copy this link:',link));
+          };
+          opt.onclick=()=>playStream(s.url,label,s.url);
+        }
         list.appendChild(opt);
         if(!sbtn.classList.contains('hidden')){sbtn.className='btn btn-stream';sbtn.textContent=`⚡ ${count} Stream${count>1?'s':''}`;}
       }
@@ -1051,8 +1080,58 @@ function playStream(url,title,rawUrl){
   });
 }
 
+// ─── WEBTORRENT ────────────────────────────────────────────────────────────────
+let _wtClient=null,_wtLoading=false;
+function loadWebTorrent(cb){
+  if(window.WebTorrent){cb();return;}
+  if(_wtLoading){const t=setInterval(()=>{if(window.WebTorrent){clearInterval(t);cb();}},100);return;}
+  _wtLoading=true;
+  const s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js';
+  s.onload=cb;s.onerror=()=>console.error('[WT] Failed to load WebTorrent');
+  document.head.appendChild(s);
+}
+function getWTClient(){
+  if(!_wtClient||_wtClient.destroyed)_wtClient=new WebTorrent();
+  return _wtClient;
+}
+function playWebTorrent(magnet,fileIdx,title){
+  pushLayer('video');navClearFocus();
+  _rawStreamUrl=magnet;
+  const overlay=document.getElementById('video-overlay');
+  const vtitle=document.getElementById('video-title');
+  document.getElementById('video-codec-error').style.display='none';
+  vtitle.textContent=title||'Loading…';
+  overlay.classList.add('open');document.body.style.overflow='hidden';
+  showVideoLoading();
+  if(currentModalItem){
+    _currentPlayInfo={tmdbId:currentModalItem.id,mediaType:currentModalIsTV?'tv':'movie',
+      title:titleOf(currentModalItem),posterPath:currentModalItem.poster_path||null,
+      season:_pendingEpisode.season??-1,episode:_pendingEpisode.episode??-1};
+  }
+  loadWebTorrent(()=>{
+    const client=getWTClient();
+    client.add(magnet,{destroyStoreOnDestroy:true},torrent=>{
+      const videoExts=/\.(mp4|mkv|avi|webm|mov)$/i;
+      const vFiles=torrent.files.filter(f=>videoExts.test(f.name));
+      const file=vFiles.length
+        ?(fileIdx!=null&&vFiles[fileIdx]?vFiles[fileIdx]:vFiles.reduce((a,b)=>b.length>a.length?b:a))
+        :torrent.files[0];
+      if(!file){hideVideoLoading();return;}
+      vtitle.textContent=title||file.name;
+      file.renderTo(player.media,{autoplay:true},err=>{
+        if(err){console.error('[WT]',err);hideVideoLoading();return;}
+        player.play().catch(()=>{});
+        hideVideoLoading();startProgressTracking();
+      });
+    });
+  });
+}
+function destroyWT(){if(_wtClient&&!_wtClient.destroyed){_wtClient.destroy();_wtClient=null;}}
+
 function closeVideo(){
   stopProgressTracking();
+  destroyWT();
   _rawStreamUrl=null;
   _currentPlayInfo=null;
   document.getElementById('video-codec-error').style.display='none';

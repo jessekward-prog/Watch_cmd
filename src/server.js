@@ -379,13 +379,19 @@ app.get('/api/proxy/trailer/:videoId', async (req, res) => {
 // =============================================================================
 const QUALITY_RANK = { '4K': 4, '1080p': 3, '720p': 2, '480p': 1, 'Unknown': 0 };
 const SOURCE_RANK  = { 'BluRay': 4, 'WEB-DL': 3, 'WEBRip': 2, 'HDTV': 1, '': 0 };
-// AVC is universally safe; AV1 works in Chrome/Firefox; unknown codec is a gamble; HEVC filtered out
 const CODEC_RANK   = { 'AVC': 3, 'AV1': 2, '': 1, 'HEVC': 0 };
-// AAC (any channel count) is safe; unknown might be fine; everything else filtered out
 const AUDIO_RANK   = { 'AAC': 3, '': 2, 'DD5.1': 0, 'DTS': 0, 'DTS-HD': 0, 'TrueHD': 0, 'Atmos': 0 };
-
-// Combined browser-safety score: AVC+AAC = 6, AVC+unknown = 5, AV1+AAC = 5, unknown+AAC = 4, etc.
 const safetyScore  = t => (CODEC_RANK[t.codec]||1) + (AUDIO_RANK[t.audio]||2);
+
+// WebRTC-compatible trackers for browser-side WebTorrent streaming
+const WT_TRACKERS = [
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.btorrent.xyz',
+  'udp://tracker.opentrackr.org:1337',
+  'udp://tracker.openbittorrent.com:6969',
+].map(t => `&tr=${encodeURIComponent(t)}`).join('');
+const buildMagnet = hash => `magnet:?xt=urn:btih:${hash}${WT_TRACKERS}`;
+const torrentTags = t => [t.quality, t.sourceType, t.hdr, t.codec, t.audio, t.sizeStr].filter(Boolean).join(' · ');
 
 app.get('/api/stream/:type/:tmdbId', async (req, res) => {
   const { type, tmdbId } = req.params;
@@ -452,7 +458,7 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     const allSafe   = top40.filter(isSafe);
 
     // Prefer safe cached; fall back to trying all safe torrents (resolveStream filters uncached ones out)
-    const top = safeCached.length > 0 ? safeCached.slice(0, 10) : allSafe.slice(0, 15);
+    const top = safeCached.length > 0 ? safeCached.slice(0, 20) : allSafe.slice(0, 20);
 
     const cachedOnlyHEVC = cached.length > 0 && safeCached.length === 0;
     if (cached.length === 0 && useSSE) res.write(`data: ${JSON.stringify({status:'No instant cache — trying top results...'})}\n\n`);
@@ -476,8 +482,9 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
             if (/e-?ac3|eac3/i.test(fn) && !/aac/i.test(fn)) { console.log(`[Stream] Skipped ${fn} — EAC3 detected in filename`); return null; }
           }
           return {
+            streamType: 'rd',
             url: result.url, quality: t.quality || 'Unknown',
-            tags: [t.quality, t.sourceType, t.hdr, t.codec, t.audio, t.sizeStr].filter(Boolean).join(' · '),
+            tags: torrentTags(t),
             filename: result.filename || '', filesize: result.filesize || 0
           };
         }
@@ -487,6 +494,30 @@ app.get('/api/stream/:type/:tmdbId', async (req, res) => {
     if (useSSE) {
       const promises = top.map(t => resolve(t).then(s => { if (s) { res.write(`data: ${JSON.stringify({stream:s})}\n\n`); console.log(`[Stream] + ${s.quality} → ${s.filename}`); } }));
       await Promise.allSettled(promises);
+
+      // Emit incompatible cached streams (HEVC/AC3) — shown in red so user knows they exist
+      const incompatibleCached = cached.filter(t => !isSafe(t)).slice(0, 6);
+      for (const t of incompatibleCached) {
+        res.write(`data: ${JSON.stringify({ stream: {
+          streamType: 'incompatible', magnet: buildMagnet(t.infoHash),
+          infoHash: t.infoHash, fileIdx: t.fileIdx,
+          quality: t.quality || 'Unknown', tags: torrentTags(t),
+          filename: t.title, url: null
+        }})}\n\n`);
+      }
+
+      // Emit non-cached safe torrents as WebTorrent fallbacks (shown in blue)
+      const cachedHashes = new Set(cached.map(t => t.infoHash));
+      const wtCandidates = allSafe.filter(t => !cachedHashes.has(t.infoHash)).slice(0, 10);
+      for (const t of wtCandidates) {
+        res.write(`data: ${JSON.stringify({ stream: {
+          streamType: 'webtorrent', magnet: buildMagnet(t.infoHash),
+          infoHash: t.infoHash, fileIdx: t.fileIdx,
+          quality: t.quality || 'Unknown', tags: torrentTags(t),
+          filename: t.title, url: null
+        }})}\n\n`);
+      }
+
       res.write(`data: ${JSON.stringify({done:true})}\n\n`); res.end();
     } else {
       const results = await Promise.allSettled(top.map(resolve));
