@@ -129,23 +129,24 @@ class RealDebridClient {
 }
 
 // =============================================================================
-//  TORRENT PROVIDER — YTS + Apibay (TPB) + EZTV + Torrentio fallback
+//  TORRENT PROVIDER — YTS mirrors + Solidtorrents + EZTV mirrors
 // =============================================================================
 class TorrentProvider {
-  constructor() {
-    this.ytsUrl       = 'https://yts.mx/api/v2';
-    this.torrentioUrl = 'https://torrentio.strem.fun';
-    this.eztvUrl      = 'https://eztv.re/api';
-  }
 
-  // YTS — try IMDB ID first, fall back to title search if empty
+  // YTS — try multiple mirrors in parallel, return first non-empty result
   async searchYTS(imdbId, title, year) {
-    const attempt = async (query) => {
+    const mirrors = [
+      'https://yts.mx/api/v2',
+      'https://yts.rs/api/v2',
+      'https://yts.lt/api/v2',
+    ];
+    const cleanImdb = imdbId.split(':')[0];
+
+    const tryQuery = async (baseUrl, query) => {
       try {
-        const url = `${this.ytsUrl}/list_movies.json?query_term=${encodeURIComponent(query)}&limit=20`;
-        console.log(`[Torrent] YTS: ${url}`);
+        const url = `${baseUrl}/list_movies.json?query_term=${encodeURIComponent(query)}&limit=20`;
         const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
-        if (!r.ok) { console.log(`[Torrent] YTS ${r.status}`); return []; }
+        if (!r.ok) return [];
         const data = await r.json();
         if (!data.data?.movies?.length) return [];
         const out = [];
@@ -154,9 +155,8 @@ class TorrentProvider {
           for (const t of movie.torrents) {
             if (!t.hash) continue;
             out.push({
-              infoHash: t.hash.toLowerCase(),
+              infoHash: t.hash.toLowerCase(), fileIdx: null, source: 'yts',
               title: `${movie.title_long} [${t.quality}] [${t.type}]`,
-              fileIdx: null, source: 'yts',
               quality: t.quality === '2160p' ? '4K' : t.quality || 'Unknown',
               sourceType: t.type === 'bluray' ? 'BluRay' : t.type === 'web' ? 'WEB-DL' : '',
               hdr: '', codec: '', audio: '', sizeStr: t.size || ''
@@ -164,92 +164,90 @@ class TorrentProvider {
           }
         }
         return out;
-      } catch (err) { console.error(`[Torrent] YTS error: ${err.message}`); return []; }
+      } catch { return []; }
     };
 
-    const cleanImdb = imdbId.split(':')[0];
-    let results = await attempt(cleanImdb);
-    if (!results.length && title) {
-      console.log('[Torrent] YTS IMDB miss — retrying with title');
-      results = await attempt(year ? `${title} ${year}` : title);
+    // Try all mirrors in parallel with IMDB ID; fall back to title if all miss
+    const byImdb = await Promise.all(mirrors.map(m => tryQuery(m, cleanImdb)));
+    const merged = byImdb.flat();
+    if (merged.length) { console.log(`[Torrent] YTS: ${merged.length} torrents`); return merged; }
+
+    if (title) {
+      const q = year ? `${title} ${year}` : title;
+      console.log(`[Torrent] YTS: IMDB miss on all mirrors — retrying with title "${q}"`);
+      const byTitle = await Promise.all(mirrors.map(m => tryQuery(m, q)));
+      const t2 = byTitle.flat();
+      console.log(`[Torrent] YTS title: ${t2.length} torrents`);
+      return t2;
     }
-    console.log(`[Torrent] YTS: ${results.length} torrents`);
-    return results;
+    console.log('[Torrent] YTS: 0 torrents');
+    return [];
   }
 
-  // Apibay (TPB official API) — IMDB ID search, works for movies and TV
-  async searchApibay(imdbId, type) {
+  // Solidtorrents — cloud-friendly torrent search engine with JSON API
+  async searchSolidtorrents(imdbId, title, year, type) {
     try {
-      const cleanId = imdbId.split(':')[0];
-      const cat = type === 'series' ? '205' : '207'; // 205=TV shows, 207=HD Movies
-      const url = `https://apibay.org/q.php?q=imdb:${cleanId}&cat=${cat}`;
-      console.log(`[Torrent] Apibay: ${url}`);
+      const q = title ? (year ? `${title} ${year}` : title) : imdbId.split(':')[0];
+      const url = `https://solidtorrents.to/api/v1/search?q=${encodeURIComponent(q)}&category=Video&_=${Date.now()}`;
+      console.log(`[Torrent] Solidtorrents: ${url}`);
       const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
-      if (!r.ok) { console.log(`[Torrent] Apibay ${r.status}`); return []; }
+      if (!r.ok) { console.log(`[Torrent] Solidtorrents ${r.status}`); return []; }
       const data = await r.json();
-      if (!data?.length || data[0]?.name === 'No results returned') { console.log('[Torrent] Apibay: no results'); return []; }
-      const results = data
-        .filter(t => t.info_hash && t.info_hash !== '0000000000000000000000000000000000000000')
+      if (!data.results?.length) { console.log('[Torrent] Solidtorrents: no results'); return []; }
+      const results = data.results
+        .filter(t => t.infohash)
         .map(t => {
           const sb = parseInt(t.size, 10) || 0;
           const sizeStr = sb > 1e9 ? `${(sb/1e9).toFixed(1)} GB` : sb > 1e6 ? `${(sb/1e6).toFixed(0)} MB` : '';
-          return { infoHash: t.info_hash.toLowerCase(), title: t.name || 'Unknown', fileIdx: null, source: 'apibay', sizeStr, ...this.parse(t.name || '') };
+          return { infoHash: t.infohash.toLowerCase(), title: t.title || 'Unknown', fileIdx: null, source: 'solidtorrents', sizeStr, ...this.parse(t.title || '') };
         });
-      console.log(`[Torrent] Apibay: ${results.length} torrents`);
+      console.log(`[Torrent] Solidtorrents: ${results.length} torrents`);
       return results;
-    } catch (err) { console.error(`[Torrent] Apibay error: ${err.message}`); return []; }
+    } catch (err) { console.error(`[Torrent] Solidtorrents error: ${err.message}`); return []; }
   }
 
-  // EZTV — TV public API
+  // EZTV — try primary and mirror in parallel
   async searchEZTV(searchId) {
-    try {
-      const [rawId, season, episode] = searchId.split(':');
-      const numericId = rawId.replace(/^tt/i, '');
-      const url = `${this.eztvUrl}/get-torrents?imdb_id=${numericId}&limit=100`;
-      console.log(`[Torrent] EZTV: ${url}`);
-      const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
-      if (!r.ok) { console.log(`[Torrent] EZTV ${r.status}`); return []; }
-      const data = await r.json();
-      if (!data.torrents?.length) { console.log('[Torrent] EZTV: no results'); return []; }
-      let torrents = data.torrents;
-      if (season && episode) {
-        const s = parseInt(season, 10), e = parseInt(episode, 10);
-        const specific = torrents.filter(t => parseInt(t.season, 10) === s && parseInt(t.episode, 10) === e);
-        if (specific.length) torrents = specific;
-      }
-      const results = torrents.map(t => {
-        const hash = (t.hash || '').toLowerCase();
-        if (!hash) return null;
-        const sb = parseInt(t.size_bytes, 10) || 0;
-        const sizeStr = sb > 1e9 ? `${(sb/1e9).toFixed(1)} GB` : sb > 1e6 ? `${(sb/1e6).toFixed(0)} MB` : '';
-        return { infoHash: hash, title: t.filename || 'Unknown', fileIdx: null, source: 'eztv', sizeStr, ...this.parse(t.filename || '') };
-      }).filter(Boolean);
-      console.log(`[Torrent] EZTV: ${results.length} torrents`);
-      return results;
-    } catch (err) { console.error(`[Torrent] EZTV: ${err.message}`); return []; }
-  }
+    const [rawId, season, episode] = searchId.split(':');
+    const numericId = rawId.replace(/^tt/i, '');
+    const mirrors = ['https://eztv.re/api', 'https://eztv.wf/api', 'https://eztv.tf/api'];
 
-  // Torrentio — usually blocked on cloud IPs but try anyway
-  async searchTorrentio(type, imdbId) {
-    try {
-      const url = `${this.torrentioUrl}/stream/${type}/${imdbId}.json`;
-      console.log(`[Torrent] Torrentio: ${url}`);
-      const r = await fetch(url, { timeout: 4000, headers: { 'User-Agent': 'Stremio', 'Accept': 'application/json' } });
-      if (r.status === 403) { console.log('[Torrent] Torrentio 403 (blocked)'); return []; }
-      if (!r.ok) return [];
-      const data = await r.json();
-      if (!data.streams?.length) return [];
-      console.log(`[Torrent] Torrentio: ${data.streams.length} streams`);
-      return data.streams.filter(s => s.infoHash).map(s => ({
-        infoHash: s.infoHash.toLowerCase(), title: s.title || 'Unknown',
-        fileIdx: s.fileIdx !== undefined ? s.fileIdx : null, source: 'torrentio', ...this.parse(s.title || '')
-      }));
-    } catch (err) { console.error(`[Torrent] Torrentio error: ${err.message}`); return []; }
+    const tryMirror = async (base) => {
+      try {
+        const url = `${base}/get-torrents?imdb_id=${numericId}&limit=100`;
+        console.log(`[Torrent] EZTV: ${url}`);
+        const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+        if (!r.ok) return [];
+        const data = await r.json();
+        return data.torrents || [];
+      } catch { return []; }
+    };
+
+    const all = await Promise.all(mirrors.map(tryMirror));
+    let torrents = all.flat();
+    // Deduplicate by hash
+    const seen = new Set();
+    torrents = torrents.filter(t => { if (!t.hash || seen.has(t.hash)) return false; seen.add(t.hash); return true; });
+
+    if (season && episode) {
+      const s = parseInt(season, 10), e = parseInt(episode, 10);
+      const specific = torrents.filter(t => parseInt(t.season, 10) === s && parseInt(t.episode, 10) === e);
+      if (specific.length) torrents = specific;
+    }
+    const results = torrents.map(t => {
+      const hash = (t.hash || '').toLowerCase();
+      if (!hash) return null;
+      const sb = parseInt(t.size_bytes, 10) || 0;
+      const sizeStr = sb > 1e9 ? `${(sb/1e9).toFixed(1)} GB` : sb > 1e6 ? `${(sb/1e6).toFixed(0)} MB` : '';
+      return { infoHash: hash, title: t.filename || 'Unknown', fileIdx: null, source: 'eztv', sizeStr, ...this.parse(t.filename || '') };
+    }).filter(Boolean);
+    console.log(`[Torrent] EZTV: ${results.length} torrents`);
+    return results;
   }
 
   async search(type, imdbId, title = '', year = '') {
     console.log(`[Torrent] Searching ${type}: ${imdbId} "${title}" ${year}`);
-    const searches = [];
+    const searches = [this.searchSolidtorrents(imdbId, title, year, type)];
     if (type === 'movie') searches.push(this.searchYTS(imdbId, title, year));
     if (type === 'series') searches.push(this.searchEZTV(imdbId));
 
